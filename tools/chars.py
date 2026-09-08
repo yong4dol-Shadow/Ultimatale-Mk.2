@@ -51,7 +51,7 @@ TAILS_PAL.update({
 # --------------------------------------------------------------------------
 # limb helpers
 # --------------------------------------------------------------------------
-def _leg(cv, hx, hy, phase, fur, shoe, accent, ring=True, length=9.5, rim=False):
+def _leg(cv, hx, hy, phase, fur, shoe, accent, ring=True, length=9.0, rim=False):
     """Draw one leg + Air Shoe. `phase` is the run-cycle angle in radians."""
     swing = math.sin(phase)
     lift = max(0.0, math.cos(phase)) * 3.0
@@ -95,42 +95,55 @@ def _arm(cv, sx, sy, phase, fur, glove='W', ring=True, length=8.0, rim=False):
     return hx, hy + 0.6
 
 
+def _quill(cv, bx, by, deg, length, w0, w1, stripe=False):
+    """One quill as a broad tapered wedge aimed along `deg`.
+
+    Quills are placed by angle so they fan out with real gaps between
+    them.  Drawing them as tapered *lines* made them read as a handful of
+    needles; giving every quill the same base region made them merge into
+    one hood.  A fan of quads sits between those two failures.
+    """
+    a = math.radians(deg)
+    dx, dy = math.cos(a), math.sin(a)
+    px, py = -dy, dx                                   # perpendicular
+    tx, ty = bx + dx * length, by + dy * length
+    cv.poly([(bx + px * w0, by + py * w0), (tx + px * w1, ty + py * w1),
+             (tx - px * w1, ty - py * w1), (bx - px * w0, by - py * w0)], 'F')
+    if stripe:                                         # red streak on the top face
+        off = w0 * 0.40
+        cv.taper_line(bx + dx * length * 0.10 + px * off,
+                      by + dy * length * 0.10 + py * off,
+                      bx + dx * length * 0.72 + px * off * 0.5,
+                      by + dy * length * 0.72 + py * off * 0.5,
+                      0.95, 0.5, 'R')
+
+
 def _shadow_quills(cv, hx, hy, flap=0.0):
-    """Six head quills: four sweeping up-back, two down-back, each striped."""
-    spec = [
-        (hx - 4.0, hy - 6.5, hx - 13.0, hy - 13.5 + flap, 2.8, 0.7),
-        (hx - 6.0, hy - 4.0, hx - 16.0, hy - 8.5 + flap * 0.7, 3.0, 0.7),
-        (hx - 6.5, hy - 0.5, hx - 17.5, hy - 2.0 + flap * 0.4, 3.0, 0.7),
-        (hx - 6.0, hy + 3.0, hx - 15.0, hy + 4.5 - flap * 0.4, 2.6, 0.7),
-    ]
-    for bx, by, tx, ty, r0, r1 in spec:
-        cv.taper_line(bx, by, tx, ty, r0, r1, 'F')
-    for bx, by, tx, ty, r0, r1 in spec:          # thin red streak per quill
-        ux = bx + (tx - bx) * 0.15
-        uy = by + (ty - by) * 0.15 - 1.0
-        vx = bx + (tx - bx) * 0.72
-        vy = by + (ty - by) * 0.72 - 0.4
-        cv.taper_line(ux, uy, vx, vy, 1.0, 0.5, 'R')
-    # two lower quills / back spines
-    cv.taper_line(hx - 5, hy + 6.5, hx - 14, hy + 11, 2.4, 0.7, 'F')
-    cv.taper_line(hx - 4, hy + 8.5, hx - 11, hy + 14, 2.0, 0.7, 'F')
+    """Six quills: four sweeping up-back, two down-back, each red-striped."""
+    for bx, by, deg, ln, w0, w1 in (
+            (hx - 3.6, hy - 6.2, 210 + flap, 8.8, 2.2, 0.9),
+            (hx - 5.6, hy - 3.4, 201 + flap * 0.7, 11.5, 2.4, 0.9),
+            (hx - 6.0, hy + 0.6, 180, 11.5, 2.4, 0.9),
+            (hx - 5.0, hy + 4.4, 158 - flap * 0.5, 10.0, 2.2, 0.9)):
+        _quill(cv, bx, by, deg, ln, w0, w1, stripe=True)
+    _quill(cv, hx - 4.0, hy + 7.4, 146, 8.5, 2.3, 0.9)     # back spine
 
 
 def _sonic_quills(cv, hx, hy, flap=0.0):
-    spec = [
-        (hx - 4.5, hy - 5.0, hx - 14.0, hy - 10.0 + flap, 3.2, 0.8),
-        (hx - 6.0, hy - 1.0, hx - 17.0, hy - 3.0 + flap * 0.6, 3.4, 0.8),
-        (hx - 5.0, hy + 3.5, hx - 15.0, hy + 5.0 - flap * 0.5, 3.0, 0.8),
-    ]
-    for bx, by, tx, ty, r0, r1 in spec:
-        cv.taper_line(bx, by, tx, ty, r0, r1, 'F')
+    for bx, by, deg, ln, w0, w1 in (
+            (hx - 4.0, hy - 5.2, 204 + flap, 11.2, 2.9, 1.1),
+            (hx - 5.6, hy - 1.6, 189 + flap * 0.6, 13.5, 3.2, 1.1),
+            (hx - 4.8, hy + 2.6, 166, 12.0, 2.9, 1.1)):
+        _quill(cv, bx, by, deg, ln, w0, w1)
 
 
 def _tails_quills(cv, hx, hy, flap=0.0):
-    cv.taper_line(hx - 5, hy - 5, hx - 11, hy - 11 + flap, 2.6, 0.8, 'F')
-    cv.taper_line(hx - 6, hy - 1, hx - 13, hy - 4 + flap, 2.8, 0.8, 'F')
-    cv.taper_line(hx - 5, hy + 3, hx - 12, hy + 4, 2.4, 0.8, 'F')
-    cv.ellipse(hx - 2, hy - 9, 3.0, 2.2, 'M')
+    for bx, by, deg, ln, w0, w1 in (
+            (hx - 3.8, hy - 6.2, 222 + flap, 7.5, 2.4, 0.9),
+            (hx - 5.4, hy - 2.8, 198 + flap * 0.6, 8.5, 2.6, 0.9),
+            (hx - 5.0, hy + 1.0, 172, 8.0, 2.4, 0.9)):
+        _quill(cv, bx, by, deg, ln, w0, w1)
+    _quill(cv, hx - 1.0, hy - 7.4, 285, 5.0, 2.2, 0.8)      # forehead tuft
 
 
 def _twin_tails(cv, x, y, phase):
@@ -161,21 +174,20 @@ EYE = [
 ]
 
 MUZZLE = [
-    '.....MMMM...',
-    '...MMMMNNM..',
-    '..MMMMMNNNM.',
-    '.MMMMMMMNNM.',
-    'MMMMMMMMMNM.',
-    'MMMMMMMMMMM.',
-    'MMMMMMMMMOM.',
-    '.MMMMMMMMMM.',
-    '..MMMMMmMM..',
-    '....mMMMM...',
+    '....MMMM..',
+    '..MMMNNM..',
+    '.MMMMNNNM.',
+    'MMMMMMNNM.',
+    'MMMMMMMNM.',
+    'MMMMMMMMM.',
+    '.MMMMMOMM.',
+    '..MMMMMMM.',
+    '...mMMMM..',
 ]
 
 
 def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
-          eye_dx=-3.5, eye_dy=-6.2, muzzle_dx=1.2, muzzle_dy=-1.5):
+          eye_dx=-3.8, eye_dy=-6.2, muzzle_dx=1.4, muzzle_dy=-2.0):
     """Side-view head in the Advance/Battle build.
 
     Order matters: skull, then ear, then the snout, and the eye last so it
@@ -184,8 +196,8 @@ def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
     cv.ellipse(hx, hy, 9.0, 8.4, 'F')                        # skull
 
     if ear:                                                  # ear, upper back
-        cv.poly([(hx - 5.0, hy - 5.6), (hx - 2.2, hy - 11.8), (hx + 2.4, hy - 6.0)], 'F')
-        cv.poly([(hx - 2.4, hy - 6.8), (hx - 1.8, hy - 9.2), (hx - 0.2, hy - 7.0)], 'm')
+        cv.poly([(hx - 5.0, hy - 5.6), (hx - 2.2, hy - 10.6), (hx + 2.4, hy - 6.0)], 'F')
+        cv.poly([(hx - 2.4, hy - 6.8), (hx - 1.8, hy - 8.6), (hx - 0.2, hy - 7.0)], 'm')
 
     cv.stamp(MUZZLE, hx + muzzle_dx, hy + muzzle_dy)
     cv.stamp(EYE, hx + eye_dx, hy + eye_dy, {'I': pal_eye})
@@ -214,9 +226,9 @@ def hedgehog(kind='shadow', pose='idle', t=0.0, bob=0.0):
     cv = Canvas(CELL_W, CELL_H)
     ang = t * math.pi * 2.0
 
-    hx, hy = 24.0, 12.5 + bob
+    hx, hy = 24.0, 12.8 + bob
     torso_x, torso_y = 21.0, 27.0 + bob * 0.5
-    hip_y = 32.0 + bob * 0.4
+    hip_y = 31.5 + bob * 0.4
 
     if pose == 'skate':
         lean = 2.0

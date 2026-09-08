@@ -93,8 +93,8 @@ def gun_soldier(t=0.0, pose='idle'):
     cv.rect(29, gun_y + 5, 4, 3, 'a')
     cv.rect(33, gun_y, 3, 2, 'A')
     if pose == 'shoot':
-        cv.circle(39, gun_y + 3, 2.2, 'V')
-        cv.px(38, gun_y + 1, 'Y')
+        cv.circle(35, gun_y + 3, 2.0, 'V')
+        cv.px(34, gun_y + 1, 'Y')
     return _finish(cv)
 
 
@@ -133,11 +133,11 @@ def gun_hunter(t=0.0, pose='idle'):
     cv.rect(9, 16, 6, 12, 'f')
     cv.rect(41, 16, 6, 12, 'f')
     # shoulder cannons
-    cv.rect(38, 10, 16, 5, 'a')
-    cv.rect(50, 11, 5, 3, 'K')
+    cv.rect(38, 10, 15, 5, 'a')
+    cv.rect(49, 11, 4, 3, 'K')
     cv.rect(2, 20, 10, 4, 'a')
     if pose == 'shoot':
-        cv.circle(55, 12, 2.4, 'V')
+        cv.circle(51, 12, 2.2, 'V')
     cv.px(30, 12, 'Y')
     return _finish(cv)
 
@@ -151,30 +151,30 @@ def black_warrior(t=0.0, pose='idle'):
     bob = math.sin(ang) * 1.0
     hipy = 30 + bob * 0.4
 
-    cv.taper_line(18, hipy, 15, 41, 2.6, 2.2, 'f')                # back leg
+    cv.taper_line(18, hipy, 15, 39, 2.6, 2.2, 'f')                # back leg
     cv.taper_line(19, 21, 14, 28, 2.4, 1.6, 'f')                  # back arm
     cv.poly([(14, 16 + bob), (27, 15 + bob), (29, 30), (13, 30)], 'F')   # carapace
     cv.poly([(17, 19 + bob), (25, 18 + bob), (26, 27), (16, 27)], 'A')   # chitin plate
-    cv.taper_line(22, hipy, 25, 41, 2.8, 2.3, 'F')                # front leg
-    cv.rect(22, 40, 8, 3, 'A')                                     # hoof/claw
-    cv.rect(12, 40, 7, 3, 'a')
+    cv.taper_line(22, hipy, 25, 39, 2.8, 2.3, 'F')                # front leg
+    cv.rect(22, 38, 8, 3, 'A')                                     # hoof/claw
+    cv.rect(12, 38, 7, 3, 'a')
 
     hx, hy = 24, 10 + bob                                          # skull
     cv.ellipse(hx, hy, 6.2, 5.4, 'F')
-    cv.poly([(hx - 6, hy - 3), (hx - 13, hy - 9), (hx - 4, hy - 6)], 'A')   # back horn
-    cv.taper_line(hx + 2, hy - 5, hx + 9, hy - 11, 2.0, 0.6, 'A')           # fore horn
-    cv.taper_line(hx - 1, hy - 5, hx + 3, hy - 12, 1.8, 0.6, 'A')
+    cv.poly([(hx - 6, hy - 3), (hx - 13, hy - 7.5), (hx - 4, hy - 6)], 'A')   # back horn
+    cv.taper_line(hx + 2, hy - 5, hx + 9, hy - 7.5, 2.0, 0.6, 'A')           # fore horn
+    cv.taper_line(hx - 1, hy - 5, hx + 3, hy - 8.0, 1.8, 0.6, 'A')
     cv.ellipse(hx + 3.4, hy + 0.5, 2.6, 2.0, 'Y')                  # single lit eye
     cv.px(hx + 4.4, hy + 0.5, 'O')
     cv.line(hx + 1, hy + 4, hx + 6, hy + 3.6, 'O')                 # jaw line
 
     # front arm + bone blade
-    reach = 5 if pose == 'attack' else 0
+    reach = 3 if pose == 'attack' else 0
     cv.taper_line(25, 21, 29 + reach, 28, 2.4, 1.8, 'F')
-    cv.taper_line(29 + reach, 28, 36 + reach, 24, 1.8, 0.7, 'A')
+    cv.taper_line(29 + reach, 28, 35 + reach, 24, 1.8, 0.7, 'A')
     if pose == 'attack':
-        for i in range(5):
-            cv.px(36 + i, 22 - i * 0.7, 'J')
+        for i in range(4):
+            cv.px(34 + i, 22 - i * 0.7, 'J')
     return _finish(cv)
 
 
@@ -209,12 +209,12 @@ def black_oak(t=0.0, pose='idle'):
     cv.poly([(15, 18 + bob), (38, 16 + bob), (43, 38), (12, 38)], 'F')
     cv.poly([(19, 22 + bob), (35, 20 + bob), (38, 34), (17, 34)], 'A')
     cv.taper_line(16, 22, 6, 34, 3.6, 2.4, 'f')
-    cv.taper_line(38, 22, 50, 32 - (6 if pose == 'attack' else 0), 3.8, 2.6, 'F')
-    cv.circle(51, 32 - (6 if pose == 'attack' else 0), 4.4, 'A')     # mace fist
+    cv.taper_line(38, 22, 48, 32 - (6 if pose == 'attack' else 0), 3.8, 2.6, 'F')
+    cv.circle(48, 32 - (6 if pose == 'attack' else 0), 4.4, 'A')     # mace fist
     hx, hy = 31, 12 + bob
     cv.ellipse(hx, hy, 7.4, 6.2, 'F')
-    cv.taper_line(hx - 3, hy - 5, hx - 14, hy - 12, 2.6, 0.7, 'A')
-    cv.taper_line(hx + 3, hy - 5, hx + 12, hy - 13, 2.6, 0.7, 'A')
+    cv.taper_line(hx - 3, hy - 5, hx - 13, hy - 9.5, 2.6, 0.7, 'A')
+    cv.taper_line(hx + 3, hy - 5, hx + 11, hy - 10.5, 2.6, 0.7, 'A')
     cv.ellipse(hx + 3.6, hy, 3.0, 2.2, 'Y')
     cv.px(hx + 4.8, hy, 'O')
     return _finish(cv)
@@ -226,13 +226,13 @@ def black_doom(t=0.0, pose='idle'):
     ang = t * math.pi * 2
     y = 4 + math.sin(ang) * 2.0
     # robe
-    cv.poly([(28, 18 + y), (46, 40 + y), (38, 58 + y), (18, 58 + y), (10, 40 + y)], 'F')
-    cv.poly([(28, 24 + y), (40, 41 + y), (34, 54 + y), (22, 54 + y), (16, 41 + y)], 'f')
+    cv.poly([(28, 18 + y), (46, 40 + y), (38, 55 + y), (18, 55 + y), (10, 40 + y)], 'F')
+    cv.poly([(28, 24 + y), (40, 41 + y), (34, 52 + y), (22, 52 + y), (16, 41 + y)], 'f')
     for i in range(3):                                   # cloak folds
-        cv.line(24 + i * 4, 30 + y + i, 22 + i * 4, 55 + y, 'H')
+        cv.line(24 + i * 4, 30 + y + i, 22 + i * 4, 53 + y, 'H')
     cv.poly([(28, 22 + y), (37, 33 + y), (28, 30 + y), (19, 33 + y)], 'A')   # collar
     for i in range(4):                                     # tattered hem
-        cv.poly([(18 + i * 6, 56 + y), (21 + i * 6, 62 + y), (24 + i * 6, 56 + y)], 'F')
+        cv.poly([(18 + i * 6, 53 + y), (21 + i * 6, 57 + y), (24 + i * 6, 53 + y)], 'F')
     # head
     cv.ellipse(28, 16 + y, 10.0, 9.0, 'F')
     cv.ellipse(28, 19 + y, 7.5, 6.0, 'f')
@@ -247,10 +247,10 @@ def black_doom(t=0.0, pose='idle'):
         cv.px(28 + (ex - 28) * 0.7, ey + y, 'O')
     # skeletal arms
     cv.taper_line(14, 30 + y, 4, 40 + y, 2.4, 1.2, 'A')
-    cv.taper_line(42, 30 + y, 52, 38 + y, 2.4, 1.2, 'A')
+    cv.taper_line(42, 30 + y, 50, 38 + y, 2.4, 1.2, 'A')
     if pose == 'attack':
-        cv.circle(52, 38 + y, 3.4, 'J')
-        cv.circle(4, 40 + y, 3.0, 'J')
+        cv.circle(50, 38 + y, 3.2, 'J')
+        cv.circle(6, 39 + y, 2.8, 'J')
     return _finish(cv)
 
 

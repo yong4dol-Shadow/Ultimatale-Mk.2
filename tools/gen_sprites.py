@@ -28,9 +28,14 @@ PNG_DIR = os.path.join(ROOT, 'assets', 'sprites')
 JS_OUT = os.path.join(ROOT, 'js', 'sprite_data.js')
 
 sheets = {}     # name -> dict(frames, fw, fh, cols, png bytes)
+clipped = []    # sprites whose art runs off the edge of its cell
 
 
-def emit(name, canvases, palette, cols=None, frame_names=None):
+def emit(name, canvases, palette, cols=None, frame_names=None, edge_check=True):
+    # Tiles, HUD icons, projectiles and effects are meant to fill their cell;
+    # only outlined actors need the border kept clear.
+    if edge_check:
+        clipped.extend(check_edges(name, canvases))
     pal = {k: hexc(v) for k, v in palette.items()}
     pix, W, H = canvases_to_sheet(canvases, pal, cols)
     path = os.path.join(PNG_DIR, name + '.png')
@@ -44,6 +49,21 @@ def emit(name, canvases, palette, cols=None, frame_names=None):
         'b64': base64.b64encode(raw).decode('ascii'),
     }
     print('  %-18s %3dx%-3d  %2d frames  %5d B' % (name, W, H, len(canvases), len(raw)))
+
+
+def check_edges(name, canvases):
+    """A sprite whose art touches the cell border loses its outline there,
+    which shows up in game as a flat-cut quill or shoe. Catch it here."""
+    bad = []
+    for i, cv in enumerate(canvases):
+        edge = [cv.g[0][x] for x in range(cv.w)]
+        edge += [cv.g[cv.h - 1][x] for x in range(cv.w)]
+        edge += [cv.g[y][0] for y in range(cv.h)]
+        edge += [cv.g[y][cv.w - 1] for y in range(cv.h)]
+        stray = sorted(set(c for c in edge if c not in '.O'))
+        if stray:
+            bad.append('%s frame %d: %s' % (name, i, ''.join(stray)))
+    return bad
 
 
 def crop(cv, x, y, w, h):
@@ -112,12 +132,13 @@ def build():
 
     emit('face_shadow', [face(chars.hedgehog('shadow', 'idle', 0.0)),
                          face(chars.hedgehog('shadow', 'attack', 0.0))],
-         chars.SHADOW_PAL, frame_names={'calm': [0], 'angry': [1]})
+         chars.SHADOW_PAL, frame_names={'calm': [0], 'angry': [1]}, edge_check=False)
     emit('face_super', [face(chars.hedgehog('shadow', 'idle', 0.0))],
-         chars.SUPER_PAL, frame_names={'calm': [0]})
-    emit('face_sonic', [face(chars.hedgehog('sonic', 'idle', 0.0))], chars.SONIC_PAL)
-    emit('face_doom', [crop(E.black_doom(0.0), 12, 0, 32, 32)], E.DOOM_PAL)
-    emit('face_maria', [crop(E.maria(0.0), 5, 2, 32, 32)], E.MARIA_PAL)
+         chars.SUPER_PAL, frame_names={'calm': [0]}, edge_check=False)
+    emit('face_sonic', [face(chars.hedgehog('sonic', 'idle', 0.0))], chars.SONIC_PAL,
+         edge_check=False)
+    emit('face_doom', [crop(E.black_doom(0.0), 12, 0, 32, 32)], E.DOOM_PAL, edge_check=False)
+    emit('face_maria', [crop(E.maria(0.0), 5, 2, 32, 32)], E.MARIA_PAL, edge_check=False)
 
     # ---- tiles ---------------------------------------------------------
     tile_names = {}
@@ -125,7 +146,7 @@ def build():
     for i, (n, fn) in enumerate(T.TILES):
         tile_names[n] = [i]
         tcanvas.append(fn())
-    emit('tiles', tcanvas, T.TILE_PAL, cols=8, frame_names=tile_names)
+    emit('tiles', tcanvas, T.TILE_PAL, cols=8, frame_names=tile_names, edge_check=False)
 
     # ---- 16x16 HUD icons ----------------------------------------------
     hud, hud_names = [], {}
@@ -145,18 +166,18 @@ def build():
     add('icon_mercy', U.icon_mercy())
     for i in range(3):
         add('graze%d' % i, U.graze(i))
-    emit('hud', hud, U.UI_PAL, cols=8, frame_names=hud_names)
+    emit('hud', hud, U.UI_PAL, cols=8, frame_names=hud_names, edge_check=False)
 
     # ---- projectiles (each its own size) --------------------------------
     for nm, fn in (('p_bullet', U.bullet_small), ('p_gun', U.bullet_gun),
                    ('p_spear', U.chaos_spear), ('p_orb', U.alien_orb),
                    ('p_eye', U.doom_eye), ('p_laser', U.laser),
                    ('p_blade', U.blade)):
-        emit(nm, [fn()], U.UI_PAL)
+        emit(nm, [fn()], U.UI_PAL, edge_check=False)
 
     # ---- effects --------------------------------------------------------
-    emit('fx_slash', [U.slash(i) for i in range(3)], U.UI_PAL)
-    emit('fx_boom', [U.boom(i) for i in range(4)], U.UI_PAL)
+    emit('fx_slash', [U.slash(i) for i in range(3)], U.UI_PAL, edge_check=False)
+    emit('fx_boom', [U.boom(i) for i in range(4)], U.UI_PAL, edge_check=False)
 
     # ---- write the JS payload -------------------------------------------
     parts = []
@@ -175,6 +196,12 @@ def build():
         f.write(js)
     total = sum(len(s['b64']) for s in sheets.values())
     print('\n%d sheets -> %s (%.1f KB inlined)' % (len(sheets), os.path.relpath(JS_OUT, ROOT), total / 1024.0))
+    if clipped:
+        print('\nWARNING: art touches the cell border (outline will be cut):')
+        for c in clipped:
+            print('  ' + c)
+    else:
+        print('every frame keeps its outline inside its cell')
 
 
 if __name__ == '__main__':
