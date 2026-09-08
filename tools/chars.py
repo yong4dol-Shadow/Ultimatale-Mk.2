@@ -177,20 +177,18 @@ EYE = [
 ]
 
 MUZZLE = [
-    '......MMMMM..',
-    '....MMMMNNNM.',
-    '..MMMMMMNNNNM',
-    '.MMMMMMMMNNNM',
-    'MMMMMMMMMMNMM',
-    'MMMMMMMMMMMMM',
-    '.MMMMMMMMMMM.',
-    '..MMMMMMMMMM.',
-    '....mMMMMMm..',
+    '.....MMMM.',
+    '...MMMNNNM',
+    '..MMMMNNNM',
+    '.MMMMMMNNM',
+    'MMMMMMMMNM',
+    '.MMMMMMMMM',
+    '...mMMMMm.',
 ]
 
 
 def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
-          eye_dx=-2.4, eye_dy=-6.0, muzzle_dx=0.0, muzzle_dy=-2.0):
+          eye_dx=-3.4, eye_dy=-6.0, muzzle_dx=-0.5, muzzle_dy=-1.8):
     """Side-view head.
 
     The likeness lives in the relationship between two parts: a large
