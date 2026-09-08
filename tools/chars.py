@@ -162,11 +162,11 @@ def _twin_tails(cv, x, y, phase):
 #   O outline   S sclera   I iris   e pupil   W glint
 #   M muzzle    m shade    N nose   n nose highlight
 # --------------------------------------------------------------------------
-# In the source style the muzzle is a big tan ball pushed forward off the
-# skull, the eye is a compact oval sitting ON its upper-back edge, and the
-# only mark on the muzzle is the nose - idle sprites carry no mouth at all.
+# In the source style the profile is a round head: the tan muzzle stays
+# INSIDE the silhouette and it is the black NOSE that pokes out of it as a
+# small bump. Idle sprites carry no mouth at all.
 #   O outline   S sclera   I iris   e pupil
-#   M muzzle    m shade    N nose
+#   M muzzle    m shade    N nose   n nose highlight
 EYE = [
     '..OOOOO.',
     '.OSSSIIO',
@@ -177,18 +177,18 @@ EYE = [
 ]
 
 MUZZLE = [
-    '.....MMMM.',
-    '...MMMNNNM',
-    '..MMMMNNNM',
-    '.MMMMMMNNM',
-    'MMMMMMMMNM',
-    '.MMMMMMMMM',
-    '...mMMMMm.',
+    '....MMMM....',
+    '..MMMMMNNN..',
+    '.MMMMMMnNNNN',
+    'MMMMMMMMNNN.',
+    'MMMMMMMM....',
+    '.MMMMMMM....',
+    '...mMMMm....',
 ]
 
 
 def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
-          eye_dx=-3.4, eye_dy=-6.0, muzzle_dx=-0.5, muzzle_dy=-1.8):
+          eye_dx=-3.4, eye_dy=-6.0, muzzle_dx=0.0, muzzle_dy=-2.0):
     """Side-view head.
 
     The likeness lives in the relationship between two parts: a large
