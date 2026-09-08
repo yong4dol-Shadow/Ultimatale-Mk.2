@@ -294,21 +294,48 @@ def devil_doom(t=0.0, pose='idle'):
     return _finish(cv)
 
 
+# A small human eye, authored pixel by pixel for the same reason the
+# hedgehog face parts are: ellipses this small round off into dots.
+#   O outline  S sclera  I iris  e pupil
+HUMAN_EYE = [
+    '.OOO.',
+    'OSSIO',
+    'OSIeO',
+    'OSSIO',
+    '.OOO.',
+]
+
+
 def maria(t=0.0, pose='idle'):
     cv = Canvas(40, 44)
     ang = t * math.pi * 2
     bob = math.sin(ang) * 0.7
-    cv.poly([(15, 26 + bob), (26, 26 + bob), (30, 41), (11, 41)], 'F')   # dress
+
+    # --- long hair behind everything ---------------------------------
+    cv.poly([(13, 8), (28, 7), (30, 24), (26, 30), (14, 30), (11, 22)], 'A')
+
+    # --- body ---------------------------------------------------------
+    cv.poly([(15, 27 + bob), (26, 27 + bob), (30, 41), (11, 41)], 'F')   # skirt
+    for i in range(4):                                                    # pleats
+        cv.line(15 + i * 4, 30, 14 + i * 5, 41, 'f')
     cv.rect(13, 40, 6, 3, 'K')
     cv.rect(22, 40, 6, 3, 'K')
-    cv.taper_line(17, 24, 13, 33, 2.0, 1.6, 'M')
-    cv.taper_line(24, 24, 28, 33, 2.0, 1.6, 'M')
-    cv.poly([(16, 20 + bob), (26, 20 + bob), (27, 28), (15, 28)], 'V')   # blouse
-    cv.ellipse(21, 13 + bob, 6.4, 6.8, 'M')                              # face
-    cv.poly([(14, 8 + bob), (28, 7 + bob), (29, 22), (25, 22),
-             (25, 12), (17, 12), (16, 22), (13, 22)], 'A')               # blonde hair
-    cv.ellipse(24, 13 + bob, 2.2, 2.0, 'S')
-    cv.ellipse(24.6, 13 + bob, 1.3, 1.6, 'E')
-    cv.px(24.8, 13 + bob, 'e')
-    cv.line(23, 17 + bob, 25, 17 + bob, 'm')
+    cv.taper_line(16, 24, 12, 33, 2.0, 1.6, 'M')                          # arms
+    cv.taper_line(25, 24, 29, 33, 2.0, 1.6, 'M')
+    cv.poly([(16, 20 + bob), (26, 20 + bob), (27, 28), (15, 28)], 'V')    # blouse
+    cv.line(21, 21 + bob, 21, 27, 'v')
+
+    # --- head ----------------------------------------------------------
+    hy = 13 + bob
+    cv.ellipse(21.5, hy, 6.2, 6.8, 'M')                                   # face
+    cv.ellipse(27, hy + 1.5, 1.6, 1.4, 'M')                               # nose bridge
+    cv.poly([(14, hy - 8), (29, hy - 9), (29, hy - 4), (22, hy - 2),
+             (15, hy - 4)], 'A')                                          # bangs
+    cv.line(15, hy - 6, 28, hy - 7, 'a')
+    cv.stamp(HUMAN_EYE, 21, hy - 1, {'I': 'E'})
+    cv.px(27, hy + 2, 'm')                                                # nose tip
+    cv.line(24, hy + 4, 26, hy + 4, 'm')                                  # mouth
+    cv.px(18, hy + 3, 'R')                                                # blush
+    cv.px(17, hy + 3, 'R')
+    cv.line(16, hy - 8, 24, hy - 9, 'V')                                  # hair band
     return _finish(cv, extra=(('E', 'e'),))

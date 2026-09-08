@@ -19,6 +19,16 @@ import zlib
 TRANSPARENT = '.'
 
 
+def _round(v):
+    """Half-up rounding.
+
+    Python's built-in round() is banker's rounding, so 20.5 and 21.5 both
+    land on 20/22 - laying a pixel stamp at a half-pixel origin would drop
+    every other column.
+    """
+    return int(math.floor(v + 0.5))
+
+
 class Canvas:
     """A grid of palette characters. '.' is transparent."""
 
@@ -39,14 +49,14 @@ class Canvas:
     def px(self, x, y, c):
         if c == TRANSPARENT:
             return
-        x = int(round(x))
-        y = int(round(y))
+        x = _round(x)
+        y = _round(y)
         if self.inside(x, y):
             self.g[y][x] = c
 
     def px_if(self, x, y, c, only):
         """Paint only over one of the colours in `only` (a string of chars)."""
-        x, y = int(round(x)), int(round(y))
+        x, y = _round(x), _round(y)
         if self.inside(x, y) and self.g[y][x] in only:
             self.g[y][x] = c
 
@@ -118,6 +128,24 @@ class Canvas:
             for i in range(0, len(xs) - 1, 2):
                 for x in range(int(math.floor(xs[i])), int(math.ceil(xs[i + 1])) + 1):
                     self.px(x, y, c)
+
+    def stamp(self, rows, x, y, mapping=None):
+        """Blit a hand-authored ASCII pixel map.
+
+        Ellipses and polygons stop being trustworthy below about 12px -
+        the rasteriser rounds a wedge into a blob - so faces and other
+        small read-critical parts are authored pixel by pixel instead.
+        '.' leaves whatever is underneath; `mapping` renames palette
+        characters per call (e.g. recolouring an iris).
+        """
+        x0, y0 = _round(x), _round(y)
+        for j, row in enumerate(rows):
+            for i, ch in enumerate(row):
+                if ch == TRANSPARENT:
+                    continue
+                if mapping and ch in mapping:
+                    ch = mapping[ch]
+                self.px(x0 + i, y0 + j, ch)
 
     # ---- composition ---------------------------------------------------
     def blit(self, other, dx=0, dy=0, skip=TRANSPARENT):

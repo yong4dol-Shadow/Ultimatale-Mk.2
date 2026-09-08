@@ -23,7 +23,7 @@ SHADOW_PAL = {
     'R': '#d8232f', 'r': '#8c1119', 'M': '#f0c49a', 'm': '#c9976c',
     'W': '#f2f2f8', 'w': '#b6b6c8', 'E': '#ff3b45', 'e': '#6d0a12',
     'S': '#ffffff', 'Y': '#ffd23f', 'y': '#b8860b', 'C': '#d8232f',
-    'c': '#8c1119', 'N': '#14101a', 'J': '#7fdcff',
+    'c': '#8c1119', 'N': '#1a1420', 'n': '#4d3f48', 'J': '#7fdcff',
 }
 
 SUPER_PAL = dict(SHADOW_PAL)
@@ -140,27 +140,60 @@ def _twin_tails(cv, x, y, phase):
         cv.circle(x - 9, y + off - 2 + w, 2.6, 'W')
 
 
-def _head(cv, hx, hy, pal_eye='E', ear=True, muzzle_dx=8.0, stripe_eye=False,
-          eye_dx=2.0, angry=True, mouth=True):
-    cv.ellipse(hx, hy, 8.6, 8.0, 'F')                    # skull
-    if ear:
-        cv.poly([(hx - 2, hy - 7), (hx + 1, hy - 12.5), (hx + 4, hy - 6)], 'F')
-        cv.poly([(hx - 0.5, hy - 7.5), (hx + 1, hy - 10.5), (hx + 2.5, hy - 7)], 'm')
-    cv.ellipse(hx + muzzle_dx - 0.5, hy + 3.4, 5.8, 4.4, 'M')  # muzzle
-    cv.ellipse(hx + muzzle_dx + 3.6, hy + 1.4, 1.8, 1.5, 'N')  # nose
-    if mouth:
-        cv.line(hx + muzzle_dx + 1, hy + 5.2, hx + muzzle_dx + 3.6, hy + 4.6, 'm')
-    # eye: almond sclera, coloured iris, dark pupil, angled brow
-    ex, ey = hx + eye_dx, hy - 1.0
-    cv.ellipse(ex + 1.4, ey, 4.4, 3.4, 'S')
-    cv.ellipse(ex + 2.6, ey + 0.2, 2.2, 2.6, pal_eye)
-    cv.ellipse(ex + 3.0, ey + 0.2, 1.0, 1.6, 'e')
-    if stripe_eye:                                        # red rim above the eye
-        cv.line(ex - 2.6, ey - 3.4, ex + 4.4, ey - 4.2, 'R')
-        cv.px(ex - 3.2, ey - 2.6, 'R')
-    if angry:
-        cv.line(ex - 2.4, ey - 3.0, ex + 3.4, ey - 3.8, 'O')
-        cv.line(ex - 2.4, ey - 2.2, ex + 1.0, ey - 3.2, 'O')
+# --------------------------------------------------------------------------
+# face parts, authored pixel by pixel
+#
+# At ~17px across, a head drawn from ellipses reads as a blob: the eye
+# rounds off into a circle and the snout melts into the skull.  These two
+# stamps carry the whole likeness, so they are placed by hand.
+#   O outline   S sclera   I iris   e pupil   W glint
+#   M muzzle    m shade    N nose   n nose highlight
+# --------------------------------------------------------------------------
+EYE = [
+    '....OOOOO.',
+    '..OOSSSIIO',
+    '.OSSSSIeIO',
+    'OSSWSSIeIO',
+    'OSSSSSIeIO',
+    '.OSSSSIeIO',
+    '..OOSSSIIO',
+    '....OOOOO.',
+]
+
+MUZZLE = [
+    '.....MMMM...',
+    '...MMMMNNM..',
+    '..MMMMMNNNM.',
+    '.MMMMMMMNNM.',
+    'MMMMMMMMMNM.',
+    'MMMMMMMMMMM.',
+    'MMMMMMMMMOM.',
+    '.MMMMMMMMMM.',
+    '..MMMMMmMM..',
+    '....mMMMM...',
+]
+
+
+def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
+          eye_dx=-3.5, eye_dy=-6.2, muzzle_dx=1.2, muzzle_dy=-1.5):
+    """Side-view head in the Advance/Battle build.
+
+    Order matters: skull, then ear, then the snout, and the eye last so it
+    overlaps the top of the snout the way the source style does.
+    """
+    cv.ellipse(hx, hy, 9.0, 8.4, 'F')                        # skull
+
+    if ear:                                                  # ear, upper back
+        cv.poly([(hx - 5.0, hy - 5.6), (hx - 2.2, hy - 11.8), (hx + 2.4, hy - 6.0)], 'F')
+        cv.poly([(hx - 2.4, hy - 6.8), (hx - 1.8, hy - 9.2), (hx - 0.2, hy - 7.0)], 'm')
+
+    cv.stamp(MUZZLE, hx + muzzle_dx, hy + muzzle_dy)
+    cv.stamp(EYE, hx + eye_dx, hy + eye_dy, {'I': pal_eye})
+
+    if stripe_eye:                                           # red rim on the lid
+        ex, ey = hx + eye_dx, hy + eye_dy
+        cv.line(ex + 3, ey - 1, ex + 8, ey - 1, 'R')
+        cv.line(ex + 1, ey, ex + 2, ey, 'R')
 
 
 def _finish(cv):
@@ -225,8 +258,7 @@ def hedgehog(kind='shadow', pose='idle', t=0.0, bob=0.0):
         cv.px(torso_x + 6.2, torso_y - 3.4, 'R')
 
     _leg(cv, torso_x + 1.6, hip_y, leg_a, 'F', 'F', 'C', ring=striped, rim=True)
-    _head(cv, hx, hy, ear=True, stripe_eye=striped,
-          pal_eye='E', eye_dx=2.0)
+    _head(cv, hx, hy, ear=True, stripe_eye=striped, pal_eye='E')
     _arm(cv, torso_x + 3.6, torso_y - 0.5, arm_a, 'F', glove='W', ring=striped, rim=True, length=7.0)
 
     if pose == 'attack':                                        # Chaos energy
