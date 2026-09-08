@@ -1,0 +1,16 @@
+# python
+__pycache__/
+*.pyc
+
+# editors / os
+.DS_Store
+.vscode/
+.idea/
+*.swp
+
+# local scratch
+/tmp/
+*.log
+
+# test output
+/tests/shots/

@@ -1,0 +1,87 @@
+/* Shadow the Hedgehog - 16bit demake shell.
+   Everything inside the canvas is drawn at 320x240 and scaled by an
+   integer factor with nearest-neighbour filtering, so the pixel grid of
+   the generated sprites stays perfectly square at any window size.      */
+
+:root {
+  --ink: #05050a;
+  --red: #d8232f;
+  --amber: #ffd23f;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: #05050a;
+  color: #d8d8e4;
+  font-family: "Galmuri11", "DungGeunMo", "Apple SD Gothic Neo",
+               "Malgun Gothic", system-ui, sans-serif;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#frame {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  background:
+    radial-gradient(circle at 50% 40%, #16121f 0%, #05050a 70%);
+}
+
+#screen {
+  display: block;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #000;
+  border: 2px solid #23233a;
+  box-shadow: 0 0 0 2px #05050a, 0 0 34px rgba(216, 35, 47, .28);
+}
+
+#hint {
+  font-size: 12px;
+  letter-spacing: .02em;
+  color: #6e6e88;
+  text-align: center;
+  padding: 0 12px;
+}
+#hint b { color: var(--amber); font-weight: 600; }
+
+#boot {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: #05050a;
+  text-align: center;
+}
+#boot h1 {
+  margin: 0;
+  font-size: 34px;
+  letter-spacing: .16em;
+  color: #f2f2f8;
+  text-shadow: 3px 3px 0 var(--red);
+}
+#boot h1 span {
+  display: block;
+  font-size: 13px;
+  letter-spacing: .5em;
+  color: var(--red);
+  margin-top: 6px;
+  text-shadow: none;
+}
+#boot p { margin: 0; color: #6e6e88; font-size: 12px; }
+#boot.gone { display: none; }
+
+@media (max-width: 700px) {
+  #hint { font-size: 10px; }
+}

@@ -1,0 +1,329 @@
+/* =====================================================================
+   data_maps.js - overworld stage definitions.
+
+   Every stage carries the three parallel objectives of the 2005 game -
+   DARK (side with Black Doom), HERO (side with humanity) and NORMAL
+   (just get to the goal without taking a side).  The exit gate stays
+   LOCKED until one of the three is satisfied, and whichever one the
+   player finished is what story_branch.js records for the ending.
+
+   Map format
+     rows      : ASCII grid, one character per 16x16 tile
+     legend    : char -> tile name in the generated tiles sheet
+     solid     : characters that block movement
+     objects   : characters lifted out of the grid into interactive props
+                 S spawn  T terminal  C crate  P pod  E emerald  G gate
+   ===================================================================== */
+(function (SH) {
+  'use strict';
+
+  var OBJ_CHARS = { S: 'spawn', T: 'terminal', C: 'crate', P: 'pod', E: 'emerald', G: 'gate' };
+
+  var Maps = SH.Maps = {
+
+    /* ---------------------------------------------------------------- */
+    westopolis: {
+      id: 'westopolis',
+      name: 'WESTOPOLIS',
+      subtitle: '도시는 이미 불타고 있다',
+      bgm: 'city',
+      floor: ',',
+      legend: { '#': 'city_wall', '%': 'city_window', '.': 'road',
+                '-': 'road_line', ',': 'walk', 'x': 'rubble', 'o': 'crater' },
+      solid: '#%x',
+      rows: [
+        '##############################',
+        '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#',
+        '#,%%%%,,,,,,T,,,,,,,,%%%%%,,,#',
+        '#,%%%%,,,,,,,,,,,,,,,%%%%%,,,#',
+        '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#',
+        '#.........................o..#',
+        '#.-.-.-.-.-.-.-.-.-.-.-.-.-..#',
+        '#S...........................#',
+        '#,,,,,,x,,,,,,,,,,,,,x,,,,,,,#',
+        '#,%%%,,,,,,,,,,,,,,,,,,%%%,,,#',
+        '#,%%%,,,,,,,,,,E,,,,,,,%%%,,,#',
+        '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#',
+        '#......o.....................#',
+        '#.-.-.-.-.-.-.-.-.-.-.-.-.-..#',
+        '#............................#',
+        '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#',
+        '#,%%%%,,,,,T,,,,,,,,,,,,,,,,,#',
+        '#,%%%%,,,,,,,,,,,,,,,,T,,,,G,#',
+        '#,,,,,,,,,,,,,,,,,,,,,,,,,,,,#',
+        '##############################'
+      ],
+      encounter: { rate: 240, table: [
+        { id: 'gun_soldier', w: 4 }, { id: 'gun_beetle', w: 2 },
+        { id: 'black_warrior', w: 4 }, { id: 'black_hawk', w: 2 }
+      ]},
+      mission: {
+        dark:   { type: 'kill', faction: 'human', count: 4,
+                  text: 'G.U.N. 병력 4명 섬멸', short: '병력 4명 섬멸' },
+        hero:   { type: 'kill', faction: 'alien', count: 4,
+                  text: '블랙 암즈 4마리 섬멸', short: '블랙 암즈 4마리' },
+        normal: { type: 'terminal', count: 3, pacifist: true,
+                  text: '대피 신호기 3개 작동 (무살생)', short: '신호기 3개·무살생' }
+      },
+      next: 'glyphic_canyon',
+      intro: [
+        { who: '블랙 둠', face: 'face_doom', color: '#c0ff3c',
+          text: '섀도우... 약속의 날이다. 카오스 에메랄드를 가져와라.' },
+        { who: '섀도우', face: 'face_shadow', frame: 1,
+          text: '...내가 누구인지, 그것만 알아내면 된다.' },
+        { text: '도시는 불타고 있다. G.U.N.도, 블랙 암즈도 모두 적일 수 있다.\n누구를 벨지는 네가 정해라.' }
+      ]
+    },
+
+    /* ---------------------------------------------------------------- */
+    glyphic_canyon: {
+      id: 'glyphic_canyon',
+      name: 'GLYPHIC CANYON',
+      subtitle: '고대 유적에 남은 기원의 실마리',
+      bgm: 'city',
+      floor: '.',
+      legend: { '#': 'rock', '.': 'sand', ',': 'grass', '=': 'ruin', '|': 'pillar' },
+      solid: '#=|',
+      rows: [
+        '##############################',
+        '#S...........#,,,,,,,,,,,,,,,#',
+        '#....||......#,,,,,,C,,,,,,,,#',
+        '#....||...........,,,,,,,,,,,#',
+        '#.........#####,,,,,,,,,|||,,#',
+        '#..C......#===#,,,,,,,,,|||,,#',
+        '#.........#=T=#,,,,,,,,,,,,,,#',
+        '#..#####..#===#,,,,,,,,P,,,,,#',
+        '#..#...#.......,,,,,,,,,,,,,,#',
+        '#..#.E.#..#####,,,,,,,,,,,,,,#',
+        '#..#...#..#,,,,,,,,,,,,,,,,,,#',
+        '#..#####..#,,,,,,,,,,,,,,,,,,#',
+        '#.........#,,,,,,,P,,,,,,,,,,#',
+        '#....P....#,,,,,,,,,,,,,,,,,,#',
+        '#.........#,,,,,,,,,,,,,,,,,,#',
+        '#..||.....#####,,,,,,,,,,,,,,#',
+        '#..||.....#=T=#,,,,,,,,C,,,,,#',
+        '#.........#===#,,,,,,,,,,,,,,#',
+        '#....T.....................G,#',
+        '##############################'
+      ],
+      encounter: { rate: 260, table: [
+        { id: 'black_warrior', w: 4 }, { id: 'black_hawk', w: 3 },
+        { id: 'gun_soldier', w: 3 }, { id: 'gun_beetle', w: 1 }
+      ]},
+      mission: {
+        dark:   { type: 'destroy', kind: 'crate', count: 3,
+                  text: 'G.U.N. 보급 컨테이너 3개 파괴', short: '컨테이너 3개 파괴' },
+        hero:   { type: 'destroy', kind: 'pod', count: 3,
+                  text: '블랙 암즈 산란낭 3개 파괴', short: '산란낭 3개 파괴' },
+        normal: { type: 'terminal', count: 3, pacifist: true,
+                  text: '고대 봉인석 3개 기동 (무살생)', short: '봉인석 3개·무살생' }
+      },
+      next: 'ark',
+      intro: [
+        { who: '섀도우', face: 'face_shadow',
+          text: '이 유적... 어째서 내 머릿속에 남아 있지?' },
+        { who: '블랙 둠', face: 'face_doom', color: '#c0ff3c',
+          text: '너는 우리의 피를 이었다. 곧 전부 기억하게 되리라.' }
+      ]
+    },
+
+    /* ---------------------------------------------------------------- */
+    ark: {
+      id: 'ark',
+      name: 'SPACE COLONY ARK',
+      subtitle: '50년 전에 멈춰버린 기억',
+      bgm: 'ark',
+      floor: '.',
+      legend: { '#': 'ark_wall', '.': 'ark_floor', ',': 'ark_grate',
+                '*': 'ark_space', '=': 'ark_console' },
+      solid: '#*=',
+      rows: [
+        '##############################',
+        '#S......#********************#',
+        '#.......#********************#',
+        '#.,,,,..#####........###.....#',
+        '#.,,,,......#..,,,,..#=#..T..#',
+        '#.,,,,..###.#..,,,,..#.#.....#',
+        '#.......#=#.#..,,,,..#.#..####',
+        '#####.###.#.#........#.#..#..#',
+        '#...T...#.#.####.#####.#..#E.#',
+        '#.......#.#....#.......#..#..#',
+        '#.#####.#.####.#########..####',
+        '#.#...#.#....#............#..#',
+        '#.#.E.#.####.#.##########.#..#',
+        '#.#...#....#.#.#........#.#..#',
+        '#.#####.##.#.#.#..####..#.#..#',
+        '#.......#..#...#..#=T#..#....#',
+        '#####.###..#####..#..#..######',
+        '#...........#........#.....G,#',
+        '#...........#........#.......#',
+        '##############################'
+      ],
+      encounter: { rate: 220, table: [
+        { id: 'gun_soldier', w: 4 }, { id: 'gun_beetle', w: 3 },
+        { id: 'black_hawk', w: 3 }, { id: 'gun_hunter', w: 1 }
+      ]},
+      mission: {
+        dark:   { type: 'kill', faction: 'human', count: 5,
+                  text: 'ARK 방위 병력 5명 섬멸', short: '병력 5명 섬멸' },
+        hero:   { type: 'kill', faction: 'alien', count: 5,
+                  text: '침입한 블랙 암즈 5마리 섬멸', short: '블랙 암즈 5마리' },
+        normal: { type: 'terminal', count: 3, pacifist: true,
+                  text: '관제 단말 3개 복구 (무살생)', short: '단말 3개·무살생' }
+      },
+      next: 'gun_fortress',
+      intro: [
+        { who: '섀도우', face: 'face_shadow',
+          text: 'ARK... 여기서 모든 것이 시작됐다.' },
+        { who: '마리아', face: 'face_maria', color: '#7fd7ff',
+          text: '(기억의 잔향) 섀도우... 부탁이야...' }
+      ]
+    },
+
+    /* ---------------------------------------------------------------- */
+    gun_fortress: {
+      id: 'gun_fortress',
+      name: 'G.U.N. FORTRESS',
+      subtitle: '인류의 방패, 혹은 감옥',
+      bgm: 'city',
+      floor: '.',
+      legend: { '#': 'steel_wall', '.': 'steel_floor', '!': 'hazard', '=': 'pipe' },
+      solid: '#=',
+      rows: [
+        '##############################',
+        '#S....!!!....................#',
+        '#.....!!!....######====#######',
+        '#............#....#........#.#',
+        '#..######....#..C.#...T....#.#',
+        '#..#....#....#....#........#.#',
+        '#..#.C..#....######........#.#',
+        '#..#....#..................#.#',
+        '#..######....######........#.#',
+        '#............#....#..#######.#',
+        '#..====......#..E.#..........#',
+        '#............#....#..######..#',
+        '#..######....######..#....#..#',
+        '#..#....#............#.C..#..#',
+        '#..#.T..#..!!!!!!!...#....#..#',
+        '#..#....#..!!!!!!!...######..#',
+        '#..######......C.............#',
+        '#.............====.......T...#',
+        '#..........................G,#',
+        '##############################'
+      ],
+      encounter: { rate: 200, table: [
+        { id: 'gun_soldier', w: 4 }, { id: 'gun_hunter', w: 2 },
+        { id: 'gun_beetle', w: 2 }, { id: 'black_warrior', w: 3 }
+      ]},
+      mission: {
+        dark:   { type: 'destroy', kind: 'crate', count: 4,
+                  text: 'G.U.N. 발전기 4기 파괴', short: '발전기 4기 파괴' },
+        hero:   { type: 'kill', faction: 'alien', count: 6,
+                  text: '요새에 침투한 블랙 암즈 6마리 섬멸', short: '블랙 암즈 6마리' },
+        normal: { type: 'terminal', count: 3, pacifist: true,
+                  text: '경비 단말 3개 무력화 (무살생)', short: '단말 3개·무살생' }
+      },
+      next: 'black_comet',
+      intro: [
+        { who: '소닉', face: 'face_sonic', color: '#7fd7ff',
+          text: '섀도우! 지금 인류를 팔아넘길 셈이야?' },
+        { who: '섀도우', face: 'face_shadow', frame: 1,
+          text: '비켜라. 나는 진실을 찾으러 왔다.' }
+      ]
+    },
+
+    /* ---------------------------------------------------------------- */
+    black_comet: {
+      id: 'black_comet',
+      name: 'BLACK COMET',
+      subtitle: '검은 혜성의 심장부',
+      bgm: 'comet',
+      floor: '.',
+      legend: { '#': 'flesh_wall', '.': 'flesh_floor', ',': 'flesh_vein' },
+      solid: '#',
+      rows: [
+        '##############################',
+        '#S.....,,,,..................#',
+        '#......,,,,....####....P.....#',
+        '#..............#..#..........#',
+        '#..####........#P.#....####..#',
+        '#..#..#...,,...#..#....#..#..#',
+        '#..#P.#...,,...####....#.E#..#',
+        '#..#..#................#..#..#',
+        '#..####.....######.....####..#',
+        '#...........#....#...........#',
+        '#..,,,......#.P..#.......,,,.#',
+        '#..,,,......#....#.......,,,.#',
+        '#...........######...........#',
+        '#..####................####..#',
+        '#..#P.#.....,,,,,,.....#..#..#',
+        '#..#..#.....,,,,,,.....#.P#..#',
+        '#..####................####..#',
+        '#.........E..................#',
+        '#.......,,,,,,,,,,........G,.#',
+        '##############################'
+      ],
+      encounter: { rate: 180, table: [
+        { id: 'black_warrior', w: 4 }, { id: 'black_oak', w: 2 },
+        { id: 'black_hawk', w: 3 }, { id: 'gun_soldier', w: 2 }
+      ]},
+      mission: {
+        dark:   { type: 'kill', faction: 'human', count: 6,
+                  text: 'G.U.N. 강습부대 6명 섬멸', short: '강습부대 6명 섬멸' },
+        hero:   { type: 'destroy', kind: 'pod', count: 4,
+                  text: '블랙 암즈 산란낭 4개 파괴', short: '산란낭 4개 파괴' },
+        normal: { type: 'terminal', count: 0, pacifist: true,
+                  text: '누구도 죽이지 않고 최심부 도달', short: '무살생 도달' }
+      },
+      next: 'FINAL',
+      intro: [
+        { who: '블랙 둠', face: 'face_doom', color: '#c0ff3c',
+          text: '잘 왔다, 나의 아들이여. 이제 약속을 지킬 시간이다.' },
+        { who: '섀도우', face: 'face_shadow', frame: 1,
+          text: '아들? ...나는 누구의 것도 아니다.' }
+      ]
+    }
+  };
+
+  SH.MAP_ORDER = ['westopolis', 'glyphic_canyon', 'ark', 'gun_fortress', 'black_comet'];
+
+  /* Parse a map definition into a runtime instance (grid + object list). */
+  SH.buildMap = function (id) {
+    var def = Maps[id];
+    if (!def) throw new Error('unknown map: ' + id);
+    var h = def.rows.length, w = def.rows[0].length;
+    var grid = [], objects = [], spawn = { x: 32, y: 32 };
+    for (var y = 0; y < h; y++) {
+      var line = def.rows[y], row = [];
+      if (line.length !== w) {
+        console.warn('map ' + id + ' row ' + y + ' is ' + line.length + ' wide, expected ' + w);
+      }
+      for (var x = 0; x < w; x++) {
+        var c = line[x] || def.floor;
+        if (OBJ_CHARS[c]) {
+          var kind = OBJ_CHARS[c];
+          if (kind === 'spawn') {
+            spawn = { x: x * 16 + 8, y: y * 16 + 12 };
+          } else {
+            objects.push({
+              kind: kind, tx: x, ty: y,
+              x: x * 16 + 8, y: y * 16 + 8,
+              used: false, alive: true
+            });
+          }
+          c = def.floor;
+        }
+        row.push(c);
+      }
+      grid.push(row);
+    }
+    /* hand out emerald indices in reading order */
+    var ei = 0;
+    objects.forEach(function (o) { if (o.kind === 'emerald') o.emeraldIndex = ei++; });
+    return {
+      def: def, id: id, w: w, h: h, grid: grid,
+      objects: objects, spawn: spawn,
+      pxw: w * 16, pxh: h * 16
+    };
+  };
+})(window.SH = window.SH || {});
