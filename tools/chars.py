@@ -162,50 +162,56 @@ def _twin_tails(cv, x, y, phase):
 #   O outline   S sclera   I iris   e pupil   W glint
 #   M muzzle    m shade    N nose   n nose highlight
 # --------------------------------------------------------------------------
+# In the source style the muzzle is a big tan ball pushed forward off the
+# skull, the eye is a compact oval sitting ON its upper-back edge, and the
+# only mark on the muzzle is the nose - idle sprites carry no mouth at all.
+#   O outline   S sclera   I iris   e pupil
+#   M muzzle    m shade    N nose
 EYE = [
-    '....OOOOO.',
-    '..OOSSSIIO',
-    '.OSSSSIeIO',
-    'OSSWSSIeIO',
-    'OSSSSSIeIO',
-    '.OSSSSIeIO',
-    '..OOSSSIIO',
-    '....OOOOO.',
+    '..OOOOO.',
+    '.OSSSIIO',
+    'OSSSSIeO',
+    'OSSSSIeO',
+    '.OSSSIIO',
+    '..OOOOO.',
 ]
 
 MUZZLE = [
-    '....MMMM..',
-    '..MMMNNM..',
-    '.MMMMNNNM.',
-    'MMMMMMNNM.',
-    'MMMMMMMNM.',
-    'MMMMMMMMM.',
-    '.MMMMMOMM.',
-    '..MMMMMMM.',
-    '...mMMMM..',
+    '......MMMMM..',
+    '....MMMMNNNM.',
+    '..MMMMMMNNNNM',
+    '.MMMMMMMMNNNM',
+    'MMMMMMMMMMNMM',
+    'MMMMMMMMMMMMM',
+    '.MMMMMMMMMMM.',
+    '..MMMMMMMMMM.',
+    '....mMMMMMm..',
 ]
 
 
 def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
-          eye_dx=-3.8, eye_dy=-6.2, muzzle_dx=1.4, muzzle_dy=-2.0):
-    """Side-view head in the Advance/Battle build.
+          eye_dx=-2.4, eye_dy=-6.0, muzzle_dx=0.0, muzzle_dy=-2.0):
+    """Side-view head.
 
-    Order matters: skull, then ear, then the snout, and the eye last so it
-    overlaps the top of the snout the way the source style does.
+    The likeness lives in the relationship between two parts: a large
+    rounded muzzle carried forward off the skull, and a compact oval eye
+    seated on its upper-back edge so the two touch.  No mouth - the
+    source sprites only draw one for specific expressions.
     """
     cv.ellipse(hx, hy, 9.0, 8.4, 'F')                        # skull
 
     if ear:                                                  # ear, upper back
-        cv.poly([(hx - 5.0, hy - 5.6), (hx - 2.2, hy - 10.6), (hx + 2.4, hy - 6.0)], 'F')
-        cv.poly([(hx - 2.4, hy - 6.8), (hx - 1.8, hy - 8.6), (hx - 0.2, hy - 7.0)], 'm')
+        cv.poly([(hx - 4.8, hy - 5.8), (hx - 2.4, hy - 10.6), (hx + 1.8, hy - 6.4)], 'F')
+        cv.poly([(hx - 2.6, hy - 7.0), (hx - 2.2, hy - 8.4), (hx - 1.0, hy - 7.2)], 'm')
 
     cv.stamp(MUZZLE, hx + muzzle_dx, hy + muzzle_dy)
     cv.stamp(EYE, hx + eye_dx, hy + eye_dy, {'I': pal_eye})
 
     if stripe_eye:                                           # red rim on the lid
         ex, ey = hx + eye_dx, hy + eye_dy
-        cv.line(ex + 3, ey - 1, ex + 8, ey - 1, 'R')
-        cv.line(ex + 1, ey, ex + 2, ey, 'R')
+        cv.line(ex + 2, ey - 1, ex + 5, ey - 1, 'R')
+        cv.px(ex + 1, ey + 0, 'R')
+        cv.px(ex + 6, ey + 0, 'R')
 
 
 def _finish(cv):
