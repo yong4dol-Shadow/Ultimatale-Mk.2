@@ -153,6 +153,51 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('base walk speed is above 90 px/s', moved.slow > 90);
   check('the fast option moves noticeably faster', moved.fast > moved.slow * 1.3);
 
+  /* ---- facing follows the input, and dashing uses the skate pose ----- */
+  const facing = await page.evaluate(async () => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const hold = async (k, extra) => {
+      SH.Input.state = {}; SH.Input.state[k] = true;
+      if (extra) SH.Input.state[extra] = true;
+      await new Promise(r => setTimeout(r, 120));
+      const p = o.player;
+      const out = { dir: p.dir, face: p.face, skating: p.skating };
+      SH.Input.state = {};
+      return out;
+    };
+    o.player.x = 200; o.player.y = 200;
+    const down = await hold('down');
+    o.player.x = 200; o.player.y = 200;
+    const up = await hold('up');
+    o.player.x = 200; o.player.y = 200;
+    const left = await hold('left');
+    o.player.x = 200; o.player.y = 200;
+    const dash = await hold('right', 'cancel');
+    const sheet = SH.Assets.sheet('shadow_ow');
+    return { down, up, left, dash, names: Object.keys(sheet.names), frames: sheet.frames };
+  });
+  check('walking down faces the camera', facing.down.dir === 'down');
+  check('walking up faces away', facing.up.dir === 'up');
+  check('walking left keeps the mirrored side view',
+    facing.left.dir === 'side' && facing.left.face === -1);
+  check('dashing switches to the skate pose', facing.dash.skating === true);
+  check('overworld sheet carries all three facings x idle/walk/skate',
+    ['idle', 'walk', 'skate', 'down_idle', 'down_walk', 'down_skate',
+     'up_idle', 'up_walk', 'up_skate'].every(n => facing.names.includes(n)) &&
+    facing.frames === 24);
+
+  /* ---- maps are bigger than one screen in both directions ------------ */
+  const mapSize = await page.evaluate(() =>
+    SH.MAP_ORDER.map(id => { const m = SH.buildMap(id); return [m.w, m.h]; }));
+  check('every map is at least 48x32 tiles',
+    mapSize.every(s => s[0] >= 48 && s[1] >= 32));
+
+  /* ---- encounters are paced for the faster player -------------------- */
+  const rates = await page.evaluate(() =>
+    SH.MAP_ORDER.map(id => SH.Maps[id].encounter.rate));
+  check('encounter distance is at least 700px everywhere',
+    rates.every(r => r >= 700));
+
   /* ---- pause menu, including the settings tab ----------------------- */
   await page.evaluate(() => SH.push(SH.makePauseMenu(SH.scenes[0])));
   await page.waitForTimeout(300);
@@ -223,6 +268,44 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('bullets spawn on the enemy turn',
     await page.evaluate(() => SH.scenes[1].bullets.length > 0));
   check('grazing charges TP', await page.evaluate(() => SH.Game.tp >= 0));
+
+  /* ---- Chaos Blast and the renamed Chaos Control --------------------- */
+  const chaos = await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier', 'gun_soldier'], {});
+    SH.Game.tp = 100; SH.Game.atk = 11;
+    b.openActs(b.enemies[0]);
+    const labels = b.menu.items.map(i => i.label);
+    const before = b.enemies.map(e => e.hp);
+    b.doBlast();
+    const after = b.enemies.map(e => e.hp);
+    b.openMercy();
+    const mercy = b.menu.items.map(i => i.label);
+    return {
+      actLabels: labels, mercyLabels: mercy, tp: SH.Game.tp,
+      dealt: before.map((h, i) => h - after[i])
+    };
+  });
+  check('ACT lists 카오스 블래스트, not 카오스 컨트롤',
+    chaos.actLabels.some(l => l.indexOf('카오스 블래스트') === 0) &&
+    !chaos.actLabels.some(l => l.indexOf('카오스 컨트롤') === 0));
+  check('MERCY renames FLEE to 카오스 컨트롤',
+    chaos.mercyLabels.includes('카오스 컨트롤') && !chaos.mercyLabels.includes('FLEE'));
+  check('Chaos Blast spends 100 TP', chaos.tp === 0);
+  check('Chaos Blast hits every enemy hard',
+    chaos.dealt.length === 2 && chaos.dealt.every(d => d >= 30));
+
+  /* ---- the time freeze survives the message that announces it -------- */
+  const freeze = await page.evaluate(async () => {
+    const b = new SH.Battle(['black_doom'], { boss: true });
+    b.chaosPending = 2.4;
+    b.state = 'message';
+    for (let i = 0; i < 120; i++) b.update(1 / 60);   // two seconds of reading
+    const beforeTurn = b.chaosFrozen;
+    b.startEnemyTurn();
+    return { beforeTurn: beforeTurn, atTurnStart: b.chaosFrozen };
+  });
+  check('the freeze does not burn down while the message is up',
+    freeze.beforeTurn === 0 && freeze.atTurnStart > 2);
 
   /* ---- ending resolution -------------------------------------------- */
   const e = await page.evaluate(() => {

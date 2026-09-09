@@ -21,11 +21,14 @@
     this.cam = { x: 0, y: 0 };
     this.player = {
       x: this.map.spawn.x, y: this.map.spawn.y,
-      vx: 0, vy: 0, face: 1, anim: 0, moving: false
+      vx: 0, vy: 0,
+      face: 1,            // -1 / +1, only meaningful when dir === 'side'
+      dir: 'down',        // 'side' | 'down' | 'up'
+      anim: 0, moving: false, skating: false
     };
     this.walked = 0;
     this.nextEnc = this.def.encounter.rate * SH.rand(0.6, 1.1);
-    this.grace = 90;                  // safe distance right after a battle
+    this.grace = 200;                 // safe distance right after a battle
     this.box = null;
     this.titleT = 2.2;
     this.gateOpen = false;
@@ -119,7 +122,7 @@
   Overworld.prototype.resume = function () {
     SH.Audio.play(this.def.bgm);
     this.walked = 0;
-    this.grace = 110;
+    this.grace = 280;
     this.nextEnc = this.def.encounter.rate * SH.rand(0.7, 1.2);
     this.refreshGate();
   };
@@ -308,12 +311,15 @@
     var speed = (dash ? 176 : 106) * SH.Settings.speedMul() * dt;
     var p = this.player;
     p.moving = !!(ax.x || ax.y);
+    p.skating = p.moving && dash;
     if (ax.x && ax.y) speed *= 0.72;
-    if (ax.x) p.face = ax.x > 0 ? 1 : -1;
+    /* horizontal input wins the facing, so a diagonal keeps the profile */
+    if (ax.x) { p.dir = 'side'; p.face = ax.x > 0 ? 1 : -1; }
+    else if (ax.y) p.dir = ax.y > 0 ? 'down' : 'up';
     if (p.moving) {
       this.tryMove(ax.x * speed, 0);
       this.tryMove(0, ax.y * speed);
-      p.anim += dt * (dash ? 14 : 9);
+      p.anim += dt * (dash ? 13 : 9);
       var dist = speed * (Math.abs(ax.x) + Math.abs(ax.y));
       if (this.grace > 0) this.grace -= dist;
       else {
@@ -387,9 +393,14 @@
     /* the compact overworld build - the 40x44 battle sprite is nearly
        three tiles tall and swamps the map */
     var sheet = SH.Game.superForm ? 'shadow_super_ow' : 'shadow_ow';
-    var f = p.moving ? SH.frameOf(sheet, 'walk', p.anim)
-                     : SH.frameOf(sheet, 'idle', SH.time * 3);
-    SH.drawFoot(sheet, f, x, y + 1, { flip: p.face < 0 });
+    var pre = p.dir === 'down' ? 'down_' : (p.dir === 'up' ? 'up_' : '');
+    var anim, phase;
+    if (p.skating) { anim = pre + 'skate'; phase = p.anim; }
+    else if (p.moving) { anim = pre + 'walk'; phase = p.anim; }
+    else { anim = pre + 'idle'; phase = SH.time * 3; }
+    var f = SH.frameOf(sheet, anim, phase);
+    /* only the side view is mirrored; front and back are symmetric */
+    SH.drawFoot(sheet, f, x, y + 1, { flip: p.dir === 'side' && p.face < 0 });
   };
 
   Overworld.prototype.drawHUD = function () {

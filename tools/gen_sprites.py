@@ -93,15 +93,26 @@ def build():
 
     # ---- compact overworld builds --------------------------------------
     def ow_frames(kind):
-        f = [chars.hedgehog_small(kind, 'idle', 0.0),
-             chars.hedgehog_small(kind, 'idle', 0.5)]
-        f += [chars.hedgehog_small(kind, 'walk', i / 4.0) for i in range(4)]
+        f = []
+        for facing in ('side', 'down', 'up'):
+            f += [chars.hedgehog_small(kind, 'idle', 0.0, facing),
+                  chars.hedgehog_small(kind, 'idle', 0.5, facing)]
+            f += [chars.hedgehog_small(kind, 'walk', i / 4.0, facing) for i in range(4)]
+            f += [chars.hedgehog_small(kind, 'skate', 0.0, facing),
+                  chars.hedgehog_small(kind, 'skate', 0.5, facing)]
         return f
 
-    ow_names = {'idle': [0, 1], 'walk': [2, 3, 4, 5],
-                'attack': [0], 'hurt': [1]}
-    emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, frame_names=ow_names)
-    emit('shadow_super_ow', ow_frames('shadow'), chars.SUPER_PAL, frame_names=ow_names)
+    # eight frames per facing: idle x2, walk x4, skate x2
+    ow_names = {}
+    for fi, pre in enumerate(('', 'down_', 'up_')):
+        b = fi * 8
+        ow_names[pre + 'idle'] = [b, b + 1]
+        ow_names[pre + 'walk'] = [b + 2, b + 3, b + 4, b + 5]
+        ow_names[pre + 'skate'] = [b + 6, b + 7]
+    ow_names['attack'] = [0]
+    ow_names['hurt'] = [1]
+    emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, cols=8, frame_names=ow_names)
+    emit('shadow_super_ow', ow_frames('shadow'), chars.SUPER_PAL, cols=8, frame_names=ow_names)
 
     # ---- G.U.N. --------------------------------------------------------
     gun = [E.gun_soldier(0.0), E.gun_soldier(0.5)]

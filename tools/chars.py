@@ -109,7 +109,7 @@ def _quill(cv, bx, by, deg, length, w0, w1, stripe=False):
     tx, ty = bx + dx * length, by + dy * length
     cv.poly([(bx + px * w0, by + py * w0), (tx + px * w1, ty + py * w1),
              (tx - px * w1, ty - py * w1), (bx - px * w0, by - py * w0)], 'F')
-    if stripe:                                         # red streak on the top face
+    if stripe and length >= 5.6:                       # red streak on the top face
         off = w0 * 0.40
         cv.taper_line(bx + dx * length * 0.10 + px * off,
                       by + dy * length * 0.10 + py * off,
@@ -177,18 +177,17 @@ EYE = [
 ]
 
 MUZZLE = [
-    '....MMMM....',
-    '..MMMMMNNN..',
-    '.MMMMMMnNNNN',
-    'MMMMMMMMNNN.',
-    'MMMMMMMM....',
-    '.MMMMMMM....',
-    '...mMMMm....',
+    '...MMMM.....',
+    '.MMMMMNNN...',
+    'MMMMMMnNNNN.',
+    'MMMMMMMNNN..',
+    '.MMMMMM.....',
+    '..mMMm......',
 ]
 
 
 def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
-          eye_dx=-3.4, eye_dy=-6.0, muzzle_dx=0.0, muzzle_dy=-2.0):
+          eye_dx=-3.4, eye_dy=-6.0, muzzle_dx=1.0, muzzle_dy=-1.6):
     """Side-view head.
 
     The likeness lives in the relationship between two parts: a large
@@ -250,25 +249,74 @@ def _small_leg(cv, hx, hy, phase, fur, shoe, accent, length=6.5):
     cv.rect(fx - 2.4, fy + 0.7, 6, 1, 'W')
 
 
-def hedgehog_small(kind='shadow', pose='idle', t=0.0):
-    """A compact overworld frame of the same character."""
-    cv = Canvas(OW_W, OW_H)
-    ang = t * math.pi * 2.0
-    bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
+# Front view: both eyes at once, irises turned inward the way the source
+# sprites draw them.
+FRONT_EYES = [
+    '.OOO.OOO.',
+    'OSSIOISSO',
+    'OSSIOISSO',
+    '.OOO.OOO.',
+]
 
-    hx, hy = 15.0, 8.6 + bob
-    tx, ty = 13.2, 17.0 + bob * 0.6
-    hip = 21.0 + bob * 0.5
-    striped = (kind == 'shadow')
+FRONT_MUZZLE = [
+    '.MMMMM.',
+    'MMNNNMM',
+    'MMMNMMM',
+    '.mMMMm.',
+]
+
+
+def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide):
+    """Torso, arms and legs shared by all three overworld facings.
+
+    `wide` spreads the limbs for the front and back views, where both of
+    each are visible; the side view stacks them instead.
+    """
+    if wide:
+        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c')
+        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C')
+        cv.taper_line(tx - 4.0, ty - 1, tx - 4.8, ty + 3.6, 1.4, 1.1, 'f')
+        cv.circle(tx - 4.8, ty + 4.4, 1.5, 'w')
+        cv.taper_line(tx + 4.0, ty - 1, tx + 4.8, ty + 3.6, 1.5, 1.2, 'F')
+        cv.circle(tx + 4.8, ty + 4.4, 1.6, 'W')
+    else:
+        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r')
+        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C')
+        cv.taper_line(tx + 0.6, ty - 1, tx - 1.4, ty + 4, 1.4, 1.1, 'f')
+        cv.taper_line(tx + 2.2, ty - 1.2, tx + 2.2 + arm_swing * 3.0, ty + 4.0, 1.5, 1.2, 'F')
+        cv.circle(tx + 2.2 + arm_swing * 3.0, ty + 4.6, 1.6, 'W')
+    if striped:
+        cv.px(tx - 3.4, ty + 1, 'R') if wide else None
+
+
+def _skate_dust(cv, x, y, n=4, phase=0.0):
+    """Hover-skate exhaust: the jets under the Air Shoes."""
+    for i in range(n):
+        off = (i + phase) % n
+        cv.px(x - off * 2.2, y + (i % 2), 'J')
+        if i % 2 == 0:
+            cv.px(x - off * 2.2, y + 2, 'c')
+
+
+def _ow_side(cv, kind, pose, ang, striped):
+    bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
+    if pose == 'skate':
+        # crouched forward over the Air Shoes, feet together and gliding
+        hx, hy = 16.6, 10.4
+        tx, ty = 12.4, 18.2
+        hip = 21.6
+    else:
+        hx, hy = 15.0, 8.6 + bob
+        tx, ty = 13.2, 17.0 + bob * 0.6
+        hip = 21.0 + bob * 0.5
 
     if pose == 'walk':
-        leg_a, leg_b = ang, ang + math.pi
-        arm_a = ang + math.pi
+        leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi)
+    elif pose == 'skate':
+        leg_a, leg_b, arm = 1.25, 1.05, -1.1
     else:
-        leg_a, leg_b = 0.5, -0.5
-        arm_a = 0.35
+        leg_a, leg_b, arm = 0.5, -0.5, 0.35
 
-    # three quills, same fan construction as the battle build
     spec = {
         'shadow': ((-2.4, -4.0, 202, 5.8, 1.5), (-3.6, -1.8, 186, 7.0, 1.7),
                    (-3.2, 1.6, 162, 6.0, 1.5)),
@@ -277,31 +325,92 @@ def hedgehog_small(kind='shadow', pose='idle', t=0.0):
         'tails':  ((-2.6, -4.2, 216, 4.8, 1.5), (-3.4, -1.6, 198, 5.4, 1.6),
                    (-3.0, 1.0, 174, 5.0, 1.5)),
     }[kind]
+    swept = 7 if pose == 'skate' else 0        # quills stream back at speed
     for dx, dy, deg, ln, w0 in spec:
-        _quill(cv, hx + dx, hy + dy, deg, ln, w0, 0.7, stripe=striped)
-    cv.taper_line(tx - 3, hip - 2, tx - 6, hip - 4, 1.4, 0.5, 'F')     # tail
+        _quill(cv, hx + dx, hy + dy, deg - swept, ln, w0, 0.7, stripe=striped)
+    cv.taper_line(tx - 3, hip - 2, tx - 6, hip - 4, 1.4, 0.5, 'F')
 
-    _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r')                # back leg
-    cv.taper_line(tx + 0.6, ty - 1, tx - 1.4, ty + 4, 1.4, 1.1, 'f')   # back arm
+    _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False)
 
-    cv.ellipse(tx, ty, 3.6, 4.2, 'F')                                  # torso
-    cv.ellipse(tx + 2.6, ty - 1.6, 1.9, 2.0, 'W')                      # chest fur
-
-    _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C')                # front leg
-
-    cv.ellipse(hx, hy, 5.6, 5.2, 'F')                                  # skull
+    cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
     cv.stamp(MUZZLE_S, hx + 1.6, hy - 1.0)
     cv.stamp(EYE_S, hx - 2.0, hy - 4.0, {'I': 'E'})
     if striped:
         cv.px(hx - 1.0, hy - 5.0, 'R')
         cv.px(hx + 0.0, hy - 5.0, 'R')
+    if pose == 'skate':
+        _skate_dust(cv, 11, 26, 4, ang / 3.2)
 
-    # front arm + glove
-    aw = math.sin(arm_a)
-    cv.taper_line(tx + 2.2, ty - 1.2, tx + 2.2 + aw * 3.0, ty + 4.0, 1.5, 1.2, 'F')
-    cv.circle(tx + 2.2 + aw * 3.0, ty + 4.6, 1.6, 'W')
 
+def _ow_front(cv, kind, pose, ang, striped, back):
+    """Front (walking toward the camera) or back (walking away)."""
+    bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
+    hx, hy = 13.0, 9.0 + bob + (1.0 if pose == 'skate' else 0.0)
+    tx, ty = 13.0, 17.2 + bob * 0.6
+    hip = 20.6 + bob * 0.5
+
+    if pose == 'walk':
+        leg_a, leg_b = ang, ang + math.pi
+    elif pose == 'skate':
+        leg_a, leg_b = 0.9, 0.9
+    else:
+        leg_a, leg_b = 0.4, -0.4
+
+    # quills fan out symmetrically to both sides, plus one over the crown
+    n = {'shadow': 3, 'sonic': 3, 'tails': 2}[kind]
+    ln = {'shadow': 5.4, 'sonic': 6.0, 'tails': 4.6}[kind]
+    for i in range(n):
+        spread = 22 + i * 24                      # 22 / 46 / 70 degrees down
+        for side in (-1, 1):
+            deg = (180 - spread) if side < 0 else spread
+            _quill(cv, hx + side * 3.2, hy - 2.2 + i * 2.2, deg, ln - i * 0.6, 1.8, 0.7)
+            if striped:                           # one clean streak per quill
+                a = math.radians(deg)
+                cv.line(hx + side * 3.6 + math.cos(a) * 1.2,
+                        hy - 2.8 + i * 2.2 + math.sin(a) * 1.2,
+                        hx + side * 3.6 + math.cos(a) * (ln - i * 0.6 - 1.4),
+                        hy - 2.8 + i * 2.2 + math.sin(a) * (ln - i * 0.6 - 1.4), 'R')
+    _quill(cv, hx, hy - 3.8, 270, 3.0, 1.9, 0.8)
+
+    _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True)
+    cv.ellipse(tx, ty - 1.0, 2.4, 2.6, 'w' if back else 'W')      # chest / back fur
+
+    cv.ellipse(hx, hy, 6.4, 5.6, 'F')                              # skull
+    for side in (-1, 1):                                           # ears
+        cv.poly([(hx + side * 2.4, hy - 4.2), (hx + side * 4.0, hy - 7.2),
+                 (hx + side * 5.4, hy - 3.6)], 'F')
+        if not back:
+            cv.px(hx + side * 3.8, hy - 5.2, 'm')
+
+    if back:
+        # back of the head: a couple of short spines, no face
+        for side in (-1, 1):
+            _quill(cv, hx + side * 2.0, hy + 1.0, 90 - side * 32, 4.4, 1.6, 0.7,
+                   stripe=striped)
+        if striped:
+            cv.line(hx - 3, hy - 3, hx + 3, hy - 3, 'R')
+    else:
+        cv.stamp(FRONT_MUZZLE, hx - 3, hy + 1)
+        cv.stamp(FRONT_EYES, hx - 4, hy - 3, {'I': 'E'})
+        if striped:
+            cv.line(hx - 5, hy - 4, hx - 2, hy - 4, 'R')
+            cv.line(hx + 2, hy - 4, hx + 5, hy - 4, 'R')
+
+    if pose == 'skate':
+        _skate_dust(cv, hx - 4, 26, 3, ang / 3.2)
+        _skate_dust(cv, hx + 6, 26, 3, ang / 3.2)
+
+
+def hedgehog_small(kind='shadow', pose='idle', t=0.0, facing='side'):
+    """A compact overworld frame. `facing` is 'side', 'down' or 'up'."""
+    cv = Canvas(OW_W, OW_H)
+    ang = t * math.pi * 2.0
+    striped = (kind == 'shadow')
+    if facing == 'side':
+        _ow_side(cv, kind, pose, ang, striped)
+    else:
+        _ow_front(cv, kind, pose, ang, striped, facing == 'up')
     cv.outline('O')
     cv.shade('F', 'f', 'H')
     cv.shade('M', 'm')

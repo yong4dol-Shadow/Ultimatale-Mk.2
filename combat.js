@@ -258,6 +258,7 @@
     this.pattern = null;
     this.patternClock = 0;
     this.chaosFrozen = 0;
+    this.chaosPending = 0;
     this.anim = 0;
     this.shadowPose = 'idle';
     this.poseTimer = 0;
@@ -408,6 +409,8 @@
     var alive = this.living();
     if (!alive.length) return this.finish('win');
     this.state = 'enemyturn';
+    this.chaosFrozen = this.chaosPending;
+    this.chaosPending = 0;
     this.bullets.length = 0;
     var src = SH.choice(alive);
     this.patternOwner = src;
@@ -518,9 +521,9 @@
       desc: '적 전체에게 카오스 에너지를 꽂는다.'
     });
     items.push({
-      label: '카오스 컨트롤  (TP 100)', color: '#c0ff3c',
-      enabled: G.tp >= 100, value: { kind: 'control' },
-      desc: '다음 적 턴 동안 시간을 늦춘다.'
+      label: '카오스 블래스트  (TP 100)', color: '#ff8a1f',
+      enabled: G.tp >= 100, value: { kind: 'blast' },
+      desc: '주변을 통째로 터뜨린다. 방어를 무시하는 최대 화력.'
     });
     this.menu = new SH.Menu(items, { x: 76, y: 140, lh: 14, size: 10 });
     this.state = 'acts';
@@ -546,9 +549,9 @@
     var items = [
       { label: 'SPARE', color: anySpareable ? '#7dff9b' : '#e2e2ec', value: 'spare',
         desc: anySpareable ? '지금이라면 놓아줄 수 있다.' : '아직 마음을 열지 않았다.' },
-      { label: 'FLEE', value: 'flee',
+      { label: '카오스 컨트롤', color: '#c0ff3c', value: 'flee',
         enabled: !this.isBoss && !this.enemies.some(function (e) { return e.def.noFlee; }),
-        desc: '카오스 컨트롤로 이탈한다.' }
+        desc: '시공을 뛰어넘어 전장에서 이탈한다.' }
     ];
     this.menu = new SH.Menu(items, { x: 76, y: 150, lh: 16, size: 11 });
     this.state = 'mercy';
@@ -591,7 +594,7 @@
     if (a.atkDown) e.atk = Math.max(1, e.atk - a.atkDown);
     if (a.defDown) e.def_ = Math.max(0, e.def_ - a.defDown);
     if (a.playerAtkUp) this.G().atk += a.playerAtkUp;
-    if (a.chaosControl) this.chaosFrozen = 2.4;
+    if (a.chaosControl) this.chaosPending = 2.4;
     if (a.surrender) this.surrendered = true;
     e.usedActs[idx] = true;
 
@@ -613,6 +616,29 @@
       var dmg = Math.max(1, Math.round(G.atk * 1.5 - e.def_));
       self.hitEnemy(e, dmg);
       lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지.' });
+      if (!e.alive) lines.push({ text: e.def.onKill });
+    });
+    this.say(lines, function () {
+      if (!self.living().length) self.finish('win');
+      else self.startEnemyTurn();
+    });
+  };
+
+  /* Chaos Blast - the big TP spend: hits everything and ignores DEF. */
+  Battle.prototype.doBlast = function () {
+    var G = this.G(), self = this;
+    G.tp -= 100;
+    SH.Audio.sfx('chaos');
+    SH.Audio.sfx('kill');
+    SH.flash('#ff8a1f', 0.4);
+    SH.shake(9, 0.6);
+    this.setPose('attack', 0.9);
+    var lines = [{ text: '카오스... 블래스트!!' }];
+    this.living().forEach(function (e) {
+      var dmg = Math.max(1, Math.round(G.atk * 3.5 + SH.rand(-3, 3)));
+      self.hitEnemy(e, dmg);
+      self.addFx('fx_boom', e.x, e.y - 24, 4, 0.5);
+      lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지!' });
       if (!e.alive) lines.push({ text: e.def.onKill });
     });
     this.say(lines, function () {
@@ -658,7 +684,9 @@
       this.poseTimer -= dt;
       if (this.poseTimer <= 0) this.shadowPose = 'idle';
     }
-    if (this.chaosFrozen > 0) this.chaosFrozen -= dt;
+    /* only counts down during the enemy turn - it used to tick while the
+       player read the message that announced it, so it expired unused */
+    if (this.state === 'enemyturn' && this.chaosFrozen > 0) this.chaosFrozen -= dt;
     if (this.soul.iframe > 0) this.soul.iframe -= dt;
     if (this.dmgPop) { this.dmgPop.t -= dt; if (this.dmgPop.t <= 0) this.dmgPop = null; }
     this.enemies.forEach(function (e) {
@@ -707,13 +735,7 @@
           var v = pick.value;
           if (v.kind === 'act') this.doAct(this.actTarget, v.i);
           else if (v.kind === 'spear') this.doSpear();
-          else {
-            G.tp -= 100;
-            this.chaosFrozen = 3.2;
-            SH.Audio.sfx('chaos');
-            this.say([{ text: '카오스 컨트롤! 시간이 늦춰졌다.' }],
-                     function () { self.startEnemyTurn(); });
-          }
+          else this.doBlast();
         }
         break;
       }
