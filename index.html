@@ -8,7 +8,11 @@
 </head>
 <body>
   <div id="frame">
-    <canvas id="screen" width="320" height="240"></canvas>
+    <div id="stage">
+      <canvas id="screen" width="320" height="240"></canvas>
+      <!-- text is drawn here at the display's real pixel density -->
+      <canvas id="text-layer"></canvas>
+    </div>
 
     <div id="boot">
       <h1>SHADOW<span>THE HEDGEHOG</span></h1>
@@ -19,7 +23,7 @@
       <b>이동</b> 방향키 / WASD &nbsp;·&nbsp;
       <b>확인</b> Z, Enter &nbsp;·&nbsp;
       <b>취소 / 대시</b> X &nbsp;·&nbsp;
-      <b>메뉴</b> C &nbsp;·&nbsp;
+      <b>메뉴 · 설정</b> C &nbsp;·&nbsp;
       <b>전체화면</b> F &nbsp;·&nbsp;
       <b>음소거</b> M
     </div>

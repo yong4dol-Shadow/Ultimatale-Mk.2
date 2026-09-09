@@ -843,7 +843,7 @@
     SH.rect(0, 0, SH.W, 16, '#05050a');
     SH.rect(0, 16, SH.W, 1, '#2a2a3c');
     SH.text('SHADOW', 6, 4, { color: '#f2f2f8', size: 10, bold: true });
-    SH.text('LV ' + G.lv, 60, 4, { color: '#ffd23f', size: 10 });
+    SH.text('LV ' + G.lv, 66, 4, { color: '#ffd23f', size: 10 });
     SH.text('HP', 96, 4, { color: '#f2f2f8', size: 10 });
     SH.bar(114, 5, 60, 8, G.hp / G.maxhp, '#d8232f', '#3a0d12');
     SH.text(Math.max(0, Math.ceil(G.hp)) + '/' + G.maxhp, 178, 4, { color: '#f2f2f8', size: 9 });

@@ -13,7 +13,8 @@
     });
     this.i = 0;
     this.chars = 0;
-    this.speed = opt.speed || 42;          // characters per second
+    this.speed = opt.speed ||
+                 (SH.Settings ? SH.Settings.textCps() : 42);   // chars per second
     this.x = opt.x !== undefined ? opt.x : 10;
     this.y = opt.y !== undefined ? opt.y : 158;
     this.w = opt.w || (SH.W - 20);
@@ -113,6 +114,8 @@
     this.cursor = opt.cursor !== false;
     this.columns = opt.columns || 1;
     this.width = opt.width || 120;
+    this.rightX = opt.rightX || 0;      // column for it.right, if any
+    this.descY = opt.descY || (SH.H - 26);
     this.wrapAround = opt.wrapAround !== false;
   }
 
@@ -159,13 +162,17 @@
       var color = it.enabled === false ? '#55556b'
                 : (on ? '#ffd23f' : (it.color || '#e2e2ec'));
       SH.text(it.label, x + 14, y, { color: color, size: this.size });
+      if (it.right) {
+        SH.text(it.right, x + 14 + this.rightX, y,
+                { color: on ? '#ffd23f' : '#9b9bb4', size: this.size });
+      }
       if (on && this.cursor) {
         SH.draw('hud', SH.frameOf('hud', 'soul', 0), x - 4, y - 3, { alpha: 1 });
       }
     }
     var sel = this.items[this.i];
     if (sel && sel.desc) {
-      SH.text(sel.desc, SH.W / 2, SH.H - 22,
+      SH.text(sel.desc, SH.W / 2, this.descY,
               { color: '#9b9bb4', size: 9, align: 'center' });
     }
   };

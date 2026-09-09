@@ -91,6 +91,18 @@ def build():
     emit('sonic', hog_frames('sonic'), chars.SONIC_PAL, frame_names=hog_names)
     emit('tails', hog_frames('tails'), chars.TAILS_PAL, frame_names=hog_names)
 
+    # ---- compact overworld builds --------------------------------------
+    def ow_frames(kind):
+        f = [chars.hedgehog_small(kind, 'idle', 0.0),
+             chars.hedgehog_small(kind, 'idle', 0.5)]
+        f += [chars.hedgehog_small(kind, 'walk', i / 4.0) for i in range(4)]
+        return f
+
+    ow_names = {'idle': [0, 1], 'walk': [2, 3, 4, 5],
+                'attack': [0], 'hurt': [1]}
+    emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, frame_names=ow_names)
+    emit('shadow_super_ow', ow_frames('shadow'), chars.SUPER_PAL, frame_names=ow_names)
+
     # ---- G.U.N. --------------------------------------------------------
     gun = [E.gun_soldier(0.0), E.gun_soldier(0.5)]
     gun += [E.gun_soldier(i / 4.0, 'walk') for i in range(4)]

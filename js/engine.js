@@ -13,7 +13,14 @@
   SH.H = H;
 
   /* ---------- screen ------------------------------------------------ */
+  /* Two layers. The back buffer is a true 320x240 pixel canvas blown up
+     with smoothing off, which is what makes the sprites look 16-bit. Text
+     goes on a second canvas kept at the display's real pixel density -
+     Korean glyphs at 8-10px simply fall apart when they are rasterised
+     into the low-res buffer and then magnified, so they are drawn once,
+     sharp, on top instead. Both use the same 320x240 coordinate space. */
   var canvas = null, ctx = null, scale = 3;
+  var textCanvas = null, tctx = null, tscale = 3;
 
   function resize() {
     if (!canvas) return;
@@ -21,8 +28,18 @@
     var s = Math.floor(Math.min((window.innerWidth - 16) / W,
                                 (window.innerHeight - pad) / H));
     scale = Math.max(1, Math.min(s, 6));
-    canvas.style.width = (W * scale) + 'px';
-    canvas.style.height = (H * scale) + 'px';
+    var cssW = W * scale, cssH = H * scale;
+    canvas.style.width = cssW + 'px';
+    canvas.style.height = cssH + 'px';
+
+    var dpr = Math.min(window.devicePixelRatio || 1, 3);
+    tscale = scale * dpr;
+    textCanvas.width = Math.round(W * tscale);
+    textCanvas.height = Math.round(H * tscale);
+    textCanvas.style.width = cssW + 'px';
+    textCanvas.style.height = cssH + 'px';
+    tctx.setTransform(tscale, 0, 0, tscale, 0, 0);
+    tctx.textBaseline = 'top';
   }
 
   /* ---------- input -------------------------------------------------- */
@@ -180,25 +197,30 @@
     return list[((i | 0) % list.length + list.length) % list.length];
   };
 
-  var FONT = '"Galmuri11","DungGeunMo","Apple SD Gothic Neo","Malgun Gothic",monospace';
+  var FONT = '"Galmuri11","DungGeunMo","Apple SD Gothic Neo","Malgun Gothic",' +
+             '"Noto Sans KR",system-ui,sans-serif';
 
   SH.text = function (str, x, y, o) {
     o = o || {};
     var size = o.size || 10;
-    ctx.font = (o.bold ? 'bold ' : '') + size + 'px ' + FONT;
-    ctx.textAlign = o.align || 'left';
-    ctx.textBaseline = o.baseline || 'top';
+    tctx.save();
+    /* inherit whatever fade the scene applied to the pixel layer */
+    tctx.globalAlpha = ctx.globalAlpha * (o.alpha === undefined ? 1 : o.alpha);
+    tctx.font = (o.bold ? 'bold ' : '') + size + 'px ' + FONT;
+    tctx.textAlign = o.align || 'left';
+    tctx.textBaseline = o.baseline || 'top';
     if (o.shadow !== false) {
-      ctx.fillStyle = o.shadowColor || '#000';
-      ctx.fillText(str, Math.round(x) + 1, Math.round(y) + 1);
+      tctx.fillStyle = o.shadowColor || '#000';
+      tctx.fillText(str, Math.round(x) + 1, Math.round(y) + 1);
     }
-    ctx.fillStyle = o.color || '#f2f2f8';
-    ctx.fillText(str, Math.round(x), Math.round(y));
+    tctx.fillStyle = o.color || '#f2f2f8';
+    tctx.fillText(str, Math.round(x), Math.round(y));
+    tctx.restore();
   };
 
   SH.textWidth = function (str, size) {
-    ctx.font = (size || 10) + 'px ' + FONT;
-    return ctx.measureText(str).width;
+    tctx.font = (size || 10) + 'px ' + FONT;
+    return tctx.measureText(str).width;
   };
 
   /* Word-wrap that also respects manual \n. */
@@ -318,10 +340,18 @@
     if (top && top.update) top.update(dt);
 
     /* draw */
+    tctx.save();
+    tctx.setTransform(1, 0, 0, 1, 0, 0);
+    tctx.clearRect(0, 0, textCanvas.width, textCanvas.height);
+    tctx.restore();
+
     ctx.save();
+    tctx.save();
     if (shakeAmt > 0) {
-      ctx.translate((Math.random() - 0.5) * shakeAmt * 2,
-                    (Math.random() - 0.5) * shakeAmt * 2);
+      var sx = (Math.random() - 0.5) * shakeAmt * 2;
+      var sy = (Math.random() - 0.5) * shakeAmt * 2;
+      ctx.translate(sx, sy);
+      tctx.translate(sx, sy);
     }
     SH.clear('#000');
     for (var j = 0; j < stack.length; j++) {
@@ -330,19 +360,22 @@
       if (sc.draw) sc.draw();
     }
     ctx.restore();
+    tctx.restore();
 
-    if (flashT > 0 && flashCol) {
+    /* full-screen overlays land on both layers so text fades with the rest */
+    function veil(col, alpha) {
       ctx.save();
-      ctx.globalAlpha = SH.clamp(flashT / flashDur, 0, 1) * 0.75;
-      SH.rect(0, 0, W, H, flashCol);
+      ctx.globalAlpha = alpha;
+      SH.rect(0, 0, W, H, col);
       ctx.restore();
+      tctx.save();
+      tctx.globalAlpha = alpha;
+      tctx.fillStyle = col;
+      tctx.fillRect(0, 0, W, H);
+      tctx.restore();
     }
-    if (fade.a > 0) {
-      ctx.save();
-      ctx.globalAlpha = SH.clamp(fade.a, 0, 1);
-      SH.rect(0, 0, W, H, fade.holdCol);
-      ctx.restore();
-    }
+    if (flashT > 0 && flashCol) veil(flashCol, SH.clamp(flashT / flashDur, 0, 1) * 0.75);
+    if (fade.a > 0) veil(fade.holdCol, SH.clamp(fade.a, 0, 1));
 
     /* global hotkeys */
     if (Input.pressed('fullscreen')) {
@@ -359,7 +392,10 @@
     canvas = document.getElementById('screen');
     ctx = canvas.getContext('2d', { alpha: false });
     ctx.imageSmoothingEnabled = false;
+    textCanvas = document.getElementById('text-layer');
+    tctx = textCanvas.getContext('2d');
     SH.ctx = ctx;
+    SH.tctx = tctx;
     bindInput();
     resize();
     window.addEventListener('resize', resize);

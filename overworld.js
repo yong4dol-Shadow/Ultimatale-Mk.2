@@ -303,8 +303,9 @@
     }
 
     var ax = SH.Input.axis();
-    var dash = SH.Input.down('cancel');
-    var speed = (dash ? 118 : 74) * dt;
+    /* with 항상 대시 on, the key inverts into a precision walk */
+    var dash = SH.Input.down('cancel') !== SH.Settings.autoDash;
+    var speed = (dash ? 176 : 106) * SH.Settings.speedMul() * dt;
     var p = this.player;
     p.moving = !!(ax.x || ax.y);
     if (ax.x && ax.y) speed *= 0.72;
@@ -381,9 +382,11 @@
     /* drop shadow keeps the sprite anchored to the floor */
     SH.ctx.save();
     SH.ctx.globalAlpha = 0.4;
-    SH.rect(x - 7, y - 2, 14, 4, '#000');
+    SH.rect(x - 5, y - 2, 10, 3, '#000');
     SH.ctx.restore();
-    var sheet = SH.Game.superForm ? 'shadow_super' : 'shadow';
+    /* the compact overworld build - the 40x44 battle sprite is nearly
+       three tiles tall and swamps the map */
+    var sheet = SH.Game.superForm ? 'shadow_super_ow' : 'shadow_ow';
     var f = p.moving ? SH.frameOf(sheet, 'walk', p.anim)
                      : SH.frameOf(sheet, 'idle', SH.time * 3);
     SH.drawFoot(sheet, f, x, y + 1, { flip: p.face < 0 });
@@ -410,7 +413,7 @@
       var done = self.objectiveDone(r[3]);
       var col = done ? '#7dff9b' : (r[2] === '실패' ? '#6e5560' : '#c9c9dd');
       SH.text((done ? '■ ' : '□ ') + r[0], 9, 19 + i * 10, { color: col, size: 8 });
-      SH.text(r[1], 42, 19 + i * 10, { color: col, size: 8 });
+      SH.text(r[1], 50, 19 + i * 10, { color: col, size: 8 });
       SH.rect(w - 26, 18 + i * 10, 26, 9, '#05050a');
       SH.text(r[2], w - 2, 19 + i * 10, { color: col, size: 8, align: 'right' });
     });

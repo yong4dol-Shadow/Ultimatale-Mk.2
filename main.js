@@ -10,9 +10,102 @@
   'use strict';
 
   var SAVE_KEY = 'shadow_the_hedgehog_16bit_v1';
+  var OPT_KEY = 'shadow_the_hedgehog_16bit_options';
   var EMERALD_SPRITES = ['emerald_cyan', 'emerald_yellow', 'emerald_green',
                          'emerald_blue', 'emerald_purple', 'emerald_red', 'emerald_white'];
   var EXP_TABLE = [0, 12, 32, 70, 130, 210, 320, 470, 660, 900, 1250];
+
+  /* ==================================================================
+     options - kept apart from the save file so they survive a new game
+     ================================================================== */
+  var MOVE_SPEEDS = [
+    { label: '보통', mul: 1.00 },
+    { label: '빠름', mul: 1.35 },
+    { label: '매우 빠름', mul: 1.75 }
+  ];
+  var TEXT_SPEEDS = [
+    { label: '보통', cps: 42 },
+    { label: '빠름', cps: 75 },
+    { label: '즉시', cps: 9999 }
+  ];
+
+  var Settings = SH.Settings = {
+    move: 0,            // index into MOVE_SPEEDS
+    text: 0,            // index into TEXT_SPEEDS
+    autoDash: false,    // move at dash speed without holding the key
+
+    speedMul: function () { return MOVE_SPEEDS[this.move].mul; },
+    textCps: function () { return TEXT_SPEEDS[this.text].cps; },
+
+    load: function () {
+      try {
+        var d = JSON.parse(localStorage.getItem(OPT_KEY) || '{}');
+        if (typeof d.move === 'number') this.move = SH.clamp(d.move | 0, 0, MOVE_SPEEDS.length - 1);
+        if (typeof d.text === 'number') this.text = SH.clamp(d.text | 0, 0, TEXT_SPEEDS.length - 1);
+        this.autoDash = !!d.autoDash;
+      } catch (e) { /* defaults are fine */ }
+    },
+    save: function () {
+      try {
+        localStorage.setItem(OPT_KEY, JSON.stringify({
+          move: this.move, text: this.text, autoDash: this.autoDash
+        }));
+      } catch (e) { /* private mode - keep the in-memory values */ }
+    },
+
+    /* a reusable menu of the options, shared by the title and the pause menu */
+    menuItems: function () {
+      var self = this;
+      return [
+        { label: '이동 속도', right: '◀ ' + MOVE_SPEEDS[this.move].label + ' ▶',
+          value: 'move', desc: '오버월드 기본 이동 속도.' },
+        { label: '항상 대시', right: '◀ ' + (this.autoDash ? '켜짐' : '꺼짐') + ' ▶',
+          value: 'autoDash',
+          desc: this.autoDash ? 'X 를 누르면 오히려 천천히 걷는다.' : 'X 를 눌러야 빨라진다.' },
+        { label: '텍스트 속도', right: '◀ ' + TEXT_SPEEDS[this.text].label + ' ▶',
+          value: 'text', desc: '대사가 표시되는 속도.' }
+      ];
+    },
+    cycle: function (key, dir) {
+      if (key === 'move') this.move = (this.move + dir + MOVE_SPEEDS.length) % MOVE_SPEEDS.length;
+      else if (key === 'text') this.text = (this.text + dir + TEXT_SPEEDS.length) % TEXT_SPEEDS.length;
+      else if (key === 'autoDash') this.autoDash = !this.autoDash;
+      this.save();
+      SH.Audio.sfx('move');
+    }
+  };
+
+  /* A scene that edits the options; `onClose` returns wherever we came from. */
+  function OptionsPanel(onClose) {
+    this.onClose = onClose || function () {};
+    this.i = 0;
+  }
+  OptionsPanel.prototype.rebuild = function () {
+    this.menu = new SH.Menu(Settings.menuItems(), { x: 54, y: 96, lh: 20, size: 11, rightX: 92 });
+    this.menu.i = this.i;
+  };
+  OptionsPanel.prototype.enter = function () { this.rebuild(); };
+  OptionsPanel.prototype.update = function () {
+    if (!this.menu) this.rebuild();
+    var picked = this.menu.update();
+    this.i = this.menu.i;
+    var key = this.menu.items[this.i].value;
+    if (SH.Input.pressed('left')) { Settings.cycle(key, -1); this.rebuild(); }
+    if (SH.Input.pressed('right') || picked) { Settings.cycle(key, 1); this.rebuild(); }
+    if (SH.Input.pressed('cancel') || SH.Input.pressed('menu')) {
+      SH.Audio.sfx('cancel');
+      this.onClose();
+    }
+  };
+  OptionsPanel.prototype.draw = function () {
+    SH.clear('#05050a');
+    SH.text('OPTIONS', SH.W / 2, 40, { color: '#ffd23f', size: 14, bold: true, align: 'center' });
+    SH.rect(54, 62, SH.W - 108, 1, '#3a3a4c');
+    if (this.menu) this.menu.draw();
+    SH.text('← → 로 변경 · X 로 돌아가기', SH.W / 2, SH.H - 12,
+            { color: '#55556b', size: 9, align: 'center' });
+  };
+  SH.OptionsPanel = OptionsPanel;
 
   /* ==================================================================
      global run state
@@ -180,9 +273,10 @@
         desc: SH.Story.flags.lastStoryUnlocked
           ? '진정한 결말. 슈퍼 섀도우 대 데빌 둠.'
           : 'ENDING 3 을 카오스 에메랄드 7개와 함께 클리어하면 열린다.' },
-      { label: 'ROUTE RECORD', value: 'record', desc: '지금까지의 분기 기록을 본다.' }
+      { label: 'ROUTE RECORD', value: 'record', desc: '지금까지의 분기 기록을 본다.' },
+      { label: 'OPTIONS', value: 'options', desc: '이동 속도 · 텍스트 속도를 바꾼다.' }
     ];
-    this.menu = new SH.Menu(items, { x: 96, y: 138, lh: 17, size: 11 });
+    this.menu = new SH.Menu(items, { x: 96, y: 132, lh: 16, size: 11 });
     this.savedData = saved;
     SH.fadeIn(0.6);
   };
@@ -204,6 +298,8 @@
       }
     } else if (picked.value === 'last') {
       SH.fadeOut(0.6, function () { SH.replace(new LastStory()); SH.fadeIn(0.6); });
+    } else if (picked.value === 'options') {
+      SH.push(new OptionsPanel(function () { SH.pop(); }));
     } else {
       SH.push(new RecordScreen());
     }
@@ -220,17 +316,16 @@
     }
     SH.ctx.save();
     SH.ctx.globalAlpha = 0.5;
-    SH.drawC('black_doom', SH.frameOf('black_doom', 'idle', t * 1.5), 276, 52, { alpha: 0.3 });
+    SH.drawC('black_doom', SH.frameOf('black_doom', 'idle', t * 1.5), 288, 44, { alpha: 0.28 });
     SH.ctx.restore();
     SH.drawFoot('shadow', SH.frameOf('shadow', 'idle', t * 2.5), 60, 132);
 
-    SH.text('SHADOW', 150, 30, { color: '#f2f2f8', size: 26, bold: true });
-    SH.text('SHADOW', 148, 28, { color: '#d8232f', size: 26, bold: true, shadow: false });
-    SH.text('SHADOW', 149, 29, { color: '#f2f2f8', size: 26, bold: true, shadow: false });
-    SH.text('THE HEDGEHOG', 150, 60, { color: '#ffd23f', size: 12, bold: true });
-    SH.text('16-BIT  ·  UNDERTALE x DELTARUNE', 150, 78,
+    SH.text('SHADOW', 152, 32, { color: '#d8232f', size: 22, bold: true, shadow: false });
+    SH.text('SHADOW', 150, 30, { color: '#f2f2f8', size: 22, bold: true, shadow: false });
+    SH.text('THE HEDGEHOG', 150, 58, { color: '#ffd23f', size: 12, bold: true });
+    SH.text('16-BIT  ·  UNDERTALE x DELTARUNE', 150, 76,
             { color: '#6e6e88', size: 8 });
-    SH.rect(148, 92, 160, 1, '#d8232f');
+    SH.rect(148, 90, 156, 1, '#d8232f');
 
     this.menu.draw();
     if (Math.sin(t * 3) > -0.3) {
@@ -314,8 +409,16 @@
      ================================================================== */
   SH.makePauseMenu = function (owner) {
     var tab = 0;
-    var TABS = ['STATUS', 'ITEM', 'ROUTE', 'SYSTEM'];
+    var TABS = ['STATUS', 'ITEM', 'ROUTE', 'SETTING', 'SYSTEM'];
     var itemMenu = null, sysMenu = null, note = '';
+    var optIdx = 0;
+
+    function optionMenu() {
+      var m = new SH.Menu(Settings.menuItems(),
+                          { x: 34, y: 56, lh: 19, size: 11, rightX: 92, descY: 178 });
+      m.i = optIdx;
+      return m;
+    }
 
     function rebuild() {
       itemMenu = new SH.Menu(Game.items.map(function (k, i) {
@@ -334,8 +437,15 @@
       drawUnder: true,
       update: function () {
         if (SH.Input.pressed('menu')) { SH.pop(); return; }
-        if (SH.Input.pressed('left')) { tab = (tab + 3) % 4; SH.Audio.sfx('move'); }
-        if (SH.Input.pressed('right')) { tab = (tab + 1) % 4; SH.Audio.sfx('move'); }
+        /* The SETTING tab consumes left/right for its own values, so tabs are
+           only switched from the other tabs - and a press that switches the
+           tab must not also be read by the tab it lands on. */
+        if (tab !== 3) {
+          var was = tab;
+          if (SH.Input.pressed('left')) { tab = (tab + TABS.length - 1) % TABS.length; SH.Audio.sfx('move'); }
+          if (SH.Input.pressed('right')) { tab = (tab + 1) % TABS.length; SH.Audio.sfx('move'); }
+          if (tab !== was) return;
+        }
 
         if (tab === 1) {
           var p = itemMenu.update();
@@ -349,6 +459,14 @@
             rebuild();
           }
         } else if (tab === 3) {
+          var om = optionMenu();
+          var op = om.update();
+          optIdx = om.i;
+          var key = om.items[optIdx].value;
+          if (SH.Input.pressed('left')) Settings.cycle(key, -1);
+          else if (SH.Input.pressed('right') || op) Settings.cycle(key, 1);
+          else if (SH.Input.pressed('cancel')) { tab = 2; SH.Audio.sfx('cancel'); }
+        } else if (tab === 4) {
           var s = sysMenu.update();
           if (s) {
             if (s.value === 'save') { note = Game.save() ? '저장했다.' : '저장에 실패했다.'; }
@@ -365,7 +483,7 @@
         SH.ctx.restore();
         SH.frameRect(8, 8, SH.W - 16, SH.H - 16, '#f2f2f8', 2);
         TABS.forEach(function (t, i) {
-          var x = 20 + i * 72;
+          var x = 18 + i * 58;
           SH.text(t, x, 18, { color: i === tab ? '#ffd23f' : '#55556b', size: 10, bold: i === tab });
         });
         SH.rect(16, 32, SH.W - 32, 1, '#3a3a4c');
@@ -387,6 +505,10 @@
         } else if (tab === 1) {
           if (!Game.items.length) SH.text('아이템이 없다.', 40, 74, { color: '#6e6e88', size: 10 });
           else itemMenu.draw();
+        } else if (tab === 3) {
+          optionMenu().draw();
+          SH.text('← → 로 값 변경 · X 로 다른 탭으로', 34, 126,
+                  { color: '#6e6e88', size: 9 });
         } else if (tab === 2) {
           SH.Story.summary().forEach(function (l, i) {
             SH.text(l, 26, 48 + i * 17, { color: '#d8d8e4', size: 10 });
@@ -398,8 +520,8 @@
         } else {
           sysMenu.draw();
         }
-        if (note) SH.text(note, SH.W / 2, SH.H - 26, { color: '#7dff9b', size: 9, align: 'center' });
-        SH.text('C 로 닫기 · ← → 탭 전환', SH.W / 2, SH.H - 14,
+        if (note) SH.text(note, SH.W / 2, SH.H - 38, { color: '#7dff9b', size: 9, align: 'center' });
+        SH.text('C 로 닫기 · ← → 탭 전환', SH.W / 2, SH.H - 24,
                 { color: '#55556b', size: 8, align: 'center' });
       }
     };
@@ -587,6 +709,7 @@
      boot
      ================================================================== */
   function start() {
+    Settings.load();
     var el = document.getElementById('bootmsg');
     SH.Assets.load(function (done, total) {
       if (el) el.textContent = '스프라이트 로드 중... ' + done + ' / ' + total;

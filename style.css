@@ -35,13 +35,26 @@ html, body {
     radial-gradient(circle at 50% 40%, #16121f 0%, #05050a 70%);
 }
 
+#stage {
+  position: relative;
+  line-height: 0;
+  border: 2px solid #23233a;
+  box-shadow: 0 0 0 2px #05050a, 0 0 34px rgba(216, 35, 47, .28);
+}
+
 #screen {
   display: block;
   image-rendering: pixelated;
   image-rendering: crisp-edges;
   background: #000;
-  border: 2px solid #23233a;
-  box-shadow: 0 0 0 2px #05050a, 0 0 34px rgba(216, 35, 47, .28);
+}
+
+/* Sits exactly over the pixel buffer but keeps the display's own pixel
+   density, so text stays sharp while the sprites stay chunky. */
+#text-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 #hint {

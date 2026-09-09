@@ -212,6 +212,104 @@ def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
         cv.px(ex + 6, ey + 0, 'R')
 
 
+# --------------------------------------------------------------------------
+# overworld build
+#
+# The 40x44 actor is a battle sprite: at 16px tiles it stands nearly three
+# tiles tall and dwarfs the map. Overworld sprites are their own, smaller
+# and simpler set - two thirds the height, three quills, and face parts
+# reduced to what still reads at that size.
+# --------------------------------------------------------------------------
+OW_W, OW_H = 26, 30
+OW_GROUND = 29
+
+EYE_S = [
+    '.OOO.',
+    'OSSIO',
+    'OSIeO',
+    '.OOO.',
+]
+
+MUZZLE_S = [
+    '..MMM..',
+    '.MMMNN.',
+    'MMMMNNN',
+    'MMMMNN.',
+    '.mMMm..',
+]
+
+
+def _small_leg(cv, hx, hy, phase, fur, shoe, accent, length=6.5):
+    swing = math.sin(phase)
+    lift = max(0.0, math.cos(phase)) * 2.0
+    fx = hx + swing * 4.0
+    fy = hy + length - lift
+    cv.taper_line(hx, hy, fx, fy - 1.0, 1.7, 1.3, fur)
+    cv.ellipse(fx + 0.4, fy - 0.2, 2.8, 1.6, shoe)
+    cv.ellipse(fx + 1.4, fy - 0.6, 1.6, 1.1, accent)
+    cv.rect(fx - 2.4, fy + 0.7, 6, 1, 'W')
+
+
+def hedgehog_small(kind='shadow', pose='idle', t=0.0):
+    """A compact overworld frame of the same character."""
+    cv = Canvas(OW_W, OW_H)
+    ang = t * math.pi * 2.0
+    bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
+
+    hx, hy = 15.0, 8.6 + bob
+    tx, ty = 13.2, 17.0 + bob * 0.6
+    hip = 21.0 + bob * 0.5
+    striped = (kind == 'shadow')
+
+    if pose == 'walk':
+        leg_a, leg_b = ang, ang + math.pi
+        arm_a = ang + math.pi
+    else:
+        leg_a, leg_b = 0.5, -0.5
+        arm_a = 0.35
+
+    # three quills, same fan construction as the battle build
+    spec = {
+        'shadow': ((-2.4, -4.0, 202, 5.8, 1.5), (-3.6, -1.8, 186, 7.0, 1.7),
+                   (-3.2, 1.6, 162, 6.0, 1.5)),
+        'sonic':  ((-2.8, -3.8, 204, 7.0, 1.8), (-3.6, -0.8, 188, 7.6, 1.9),
+                   (-3.0, 2.2, 166, 6.8, 1.7)),
+        'tails':  ((-2.6, -4.2, 216, 4.8, 1.5), (-3.4, -1.6, 198, 5.4, 1.6),
+                   (-3.0, 1.0, 174, 5.0, 1.5)),
+    }[kind]
+    for dx, dy, deg, ln, w0 in spec:
+        _quill(cv, hx + dx, hy + dy, deg, ln, w0, 0.7, stripe=striped)
+    cv.taper_line(tx - 3, hip - 2, tx - 6, hip - 4, 1.4, 0.5, 'F')     # tail
+
+    _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r')                # back leg
+    cv.taper_line(tx + 0.6, ty - 1, tx - 1.4, ty + 4, 1.4, 1.1, 'f')   # back arm
+
+    cv.ellipse(tx, ty, 3.6, 4.2, 'F')                                  # torso
+    cv.ellipse(tx + 2.6, ty - 1.6, 1.9, 2.0, 'W')                      # chest fur
+
+    _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C')                # front leg
+
+    cv.ellipse(hx, hy, 5.6, 5.2, 'F')                                  # skull
+    cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
+    cv.stamp(MUZZLE_S, hx + 1.6, hy - 1.0)
+    cv.stamp(EYE_S, hx - 2.0, hy - 4.0, {'I': 'E'})
+    if striped:
+        cv.px(hx - 1.0, hy - 5.0, 'R')
+        cv.px(hx + 0.0, hy - 5.0, 'R')
+
+    # front arm + glove
+    aw = math.sin(arm_a)
+    cv.taper_line(tx + 2.2, ty - 1.2, tx + 2.2 + aw * 3.0, ty + 4.0, 1.5, 1.2, 'F')
+    cv.circle(tx + 2.2 + aw * 3.0, ty + 4.6, 1.6, 'W')
+
+    cv.outline('O')
+    cv.shade('F', 'f', 'H')
+    cv.shade('M', 'm')
+    cv.shade('W', 'w')
+    cv.shade('C', 'c')
+    return cv
+
+
 def _finish(cv):
     cv.outline('O')
     cv.shade('F', 'f', 'H')

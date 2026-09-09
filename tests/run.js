@@ -57,7 +57,8 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     }
   });
 
-  const shot = n => page.locator('#screen').screenshot({ path: path.join(SHOTS, n + '.png') });
+  /* #stage, not #screen: text lives on a second canvas layered over it */
+  const shot = n => page.locator('#stage').screenshot({ path: path.join(SHOTS, n + '.png') });
   const key = async (k, n = 1) => {
     for (let i = 0; i < n; i++) { await page.keyboard.press(k); await page.waitForTimeout(110); }
   };
@@ -71,6 +72,47 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   await shot('01_title');
   check('boots to the title screen', await page.evaluate(() => SH.scenes.length === 1));
 
+  /* ---- text layer renders above the pixel buffer, at real density ---- */
+  const layer = await page.evaluate(() => {
+    const s = document.getElementById('screen');
+    const t = document.getElementById('text-layer');
+    if (!t) return null;
+    return {
+      backing: t.width, css: Math.round(t.getBoundingClientRect().width),
+      screenCss: Math.round(s.getBoundingClientRect().width),
+      painted: (() => {
+        const d = t.getContext('2d').getImageData(0, 0, t.width, t.height).data;
+        for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true;
+        return false;
+      })()
+    };
+  });
+  check('text layer exists and overlays the screen exactly',
+    !!layer && layer.css === layer.screenCss);
+  /* at least one device pixel per CSS pixel, and far more than the
+     320-wide pixel buffer it sits on */
+  check('text layer backs more pixels than the 320px buffer',
+    !!layer && layer.backing > 320 && layer.backing >= layer.css);
+  check('text actually draws onto the layer', !!layer && layer.painted);
+
+  /* ---- options ------------------------------------------------------- */
+  const opts = await page.evaluate(() => {
+    const S = SH.Settings, before = S.speedMul();
+    S.move = 2; S.autoDash = true; S.text = 2; S.save();
+    const stored = JSON.parse(localStorage.getItem('shadow_the_hedgehog_16bit_options'));
+    S.move = 0; S.autoDash = false; S.text = 0; S.load();
+    return {
+      before: before, fastest: S.speedMul(), stored: stored,
+      reloadedMove: S.move, reloadedDash: S.autoDash, cps: S.textCps()
+    };
+  });
+  check('move speed option raises the multiplier', opts.fastest > opts.before);
+  check('options persist and reload', opts.reloadedMove === 2 && opts.reloadedDash === true);
+  check('text speed option is applied', opts.cps > 42);
+  await page.evaluate(() => {
+    SH.Settings.move = 0; SH.Settings.text = 0; SH.Settings.autoDash = false; SH.Settings.save();
+  });
+
   /* ---- title -> prologue -> overworld through real key presses ---- */
   await key('KeyZ');
   await page.waitForTimeout(1200);
@@ -82,6 +124,50 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   await page.waitForTimeout(300);
   await shot('02_overworld');
 
+  /* ---- overworld uses the compact build, not the battle sprite ------- */
+  const sprites = await page.evaluate(() => {
+    const ow = SH.Assets.sheet('shadow_ow'), big = SH.Assets.sheet('shadow');
+    return ow && big ? { ow: [ow.fw, ow.fh], big: [big.fw, big.fh] } : null;
+  });
+  check('overworld sprite is smaller than the battle sprite',
+    !!sprites && sprites.ow[1] < sprites.big[1] && sprites.ow[0] < sprites.big[0]);
+
+  /* ---- movement speed ------------------------------------------------ */
+  const moved = await page.evaluate(async () => {
+    const walk = async (secs) => {
+      const o = SH.scenes[SH.scenes.length - 1];
+      o.player.x = 40; o.player.y = 120;
+      const start = o.player.x;
+      const t0 = performance.now();
+      SH.Input.state.right = true;
+      await new Promise(r => setTimeout(r, secs * 1000));
+      SH.Input.state.right = false;
+      const dt = (performance.now() - t0) / 1000;
+      return (o.player.x - start) / dt;
+    };
+    SH.Settings.move = 0; const slow = await walk(0.5);
+    SH.Settings.move = 2; const fast = await walk(0.5);
+    SH.Settings.move = 0;
+    return { slow: slow, fast: fast };
+  });
+  check('base walk speed is above 90 px/s', moved.slow > 90);
+  check('the fast option moves noticeably faster', moved.fast > moved.slow * 1.3);
+
+  /* ---- pause menu, including the settings tab ----------------------- */
+  await page.evaluate(() => SH.push(SH.makePauseMenu(SH.scenes[0])));
+  await page.waitForTimeout(300);
+  await key('ArrowRight', 3);
+  await page.waitForTimeout(300);
+  await shot('03_pause_setting');
+  check('pause menu opens over the overworld',
+    await page.evaluate(() => SH.scenes.length === 2));
+  await key('ArrowRight');
+  await page.waitForTimeout(200);
+  check('settings tab changes a value in-game',
+    await page.evaluate(() => SH.Settings.move === 1));
+  await page.evaluate(() => { SH.Settings.move = 0; SH.Settings.save(); SH.pop(); });
+  await page.waitForTimeout(200);
+
   /* ---- mission lock ------------------------------------------------ */
   await page.evaluate(() => { SH.Game.newRun(); SH.Game.seenIntro.westopolis = true; SH.replace(new SH.Overworld('westopolis')); });
   await page.waitForTimeout(700);
@@ -90,7 +176,7 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   await page.evaluate(() => { const o = SH.scenes[0]; o.progress().terminals = 3; o.refreshGate(); });
   check('NORMAL objective unlocks the gate',
     await page.evaluate(() => SH.scenes[0].gateOpen && SH.scenes[0].firstCompleted === 'normal'));
-  await shot('03_gate_open');
+  await shot('04_gate_open');
 
   await page.evaluate(() => { SH.scenes[0].progress().killedAnyone = true; });
   check('a kill invalidates the pacifist objective',
@@ -119,7 +205,7 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   for (const id of ['ark', 'gun_fortress', 'black_comet']) {
     await page.evaluate(m => { SH.Game.seenIntro[m] = true; SH.replace(new SH.Overworld(m)); }, id);
     await page.waitForTimeout(600);
-    await shot('04_' + id);
+    await shot('05_' + id);
   }
   check('every stage map renders', errors.length === 0);
 
@@ -130,10 +216,10 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   await page.waitForTimeout(1500);
   check('an encounter opens a battle', await page.evaluate(() => SH.scenes.length === 2));
   await key('KeyZ', 3);
-  await shot('05_battle');
+  await shot('06_battle');
   await page.evaluate(() => { const b = SH.scenes[1]; b.startEnemyTurn(); });
   await page.waitForTimeout(2500);
-  await shot('06_bullets');
+  await shot('07_bullets');
   check('bullets spawn on the enemy turn',
     await page.evaluate(() => SH.scenes[1].bullets.length > 0));
   check('grazing charges TP', await page.evaluate(() => SH.Game.tp >= 0));
@@ -169,7 +255,7 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   await page.waitForTimeout(800);
   await key('KeyZ', 6);
   await page.waitForTimeout(1300);
-  await shot('07_black_doom');
+  await shot('08_black_doom');
   check('hero finale spawns Black Doom', await page.evaluate(() => {
     const b = SH.scenes[SH.scenes.length - 1];
     return !!(b.enemies && b.enemies[0] && b.enemies[0].id === 'black_doom');
@@ -185,15 +271,29 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   await key('KeyZ', 3);
   await page.evaluate(() => SH.scenes[SH.scenes.length - 1].startEnemyTurn());
   await page.waitForTimeout(2500);
-  await shot('08_devil_doom');
+  await shot('09_devil_doom');
   check('Last Story battle runs as Super Shadow', await page.evaluate(() => {
     const b = SH.scenes[SH.scenes.length - 1];
     return b.enemies[0].id === 'devil_doom' && b.superForm === true;
   }));
 
+  /* ---- options screens render --------------------------------------- */
+  await page.evaluate(() => { SH.replace(new SH.Title()); });
+  await page.waitForTimeout(500);
+  await page.evaluate(() => { SH.push(new SH.OptionsPanel(function () { SH.pop(); })); });
+  await page.waitForTimeout(400);
+  await shot('10_options');
+  await key('ArrowRight', 2);
+  await page.waitForTimeout(200);
+  check('options screen changes a value with the arrow keys',
+    await page.evaluate(() => SH.Settings.move === 2));
+  await page.evaluate(() => { SH.Settings.move = 0; SH.Settings.save(); });
+  await key('KeyX');
+  await page.waitForTimeout(300);
+
   await page.evaluate(() => SH.showEnding('ending_true'));
   await page.waitForTimeout(1400);
-  await shot('09_ending');
+  await shot('11_ending');
   check('ending scene renders', await page.evaluate(() => SH.scenes.length === 1));
 
   /* ---- every bullet pattern ------------------------------------------ */
