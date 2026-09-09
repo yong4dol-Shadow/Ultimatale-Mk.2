@@ -33,6 +33,8 @@
     move: 0,            // index into MOVE_SPEEDS
     text: 0,            // index into TEXT_SPEEDS
     autoDash: false,    // move at dash speed without holding the key
+    tips: true,         // show the one-line tutorial prompts
+    seenTips: {},       // tip id -> true, so each one only fires once
 
     speedMul: function () { return MOVE_SPEEDS[this.move].mul; },
     textCps: function () { return TEXT_SPEEDS[this.text].cps; },
@@ -43,12 +45,15 @@
         if (typeof d.move === 'number') this.move = SH.clamp(d.move | 0, 0, MOVE_SPEEDS.length - 1);
         if (typeof d.text === 'number') this.text = SH.clamp(d.text | 0, 0, TEXT_SPEEDS.length - 1);
         this.autoDash = !!d.autoDash;
+        this.tips = d.tips !== false;
+        this.seenTips = d.seenTips || {};
       } catch (e) { /* defaults are fine */ }
     },
     save: function () {
       try {
         localStorage.setItem(OPT_KEY, JSON.stringify({
-          move: this.move, text: this.text, autoDash: this.autoDash
+          move: this.move, text: this.text, autoDash: this.autoDash,
+          tips: this.tips, seenTips: this.seenTips
         }));
       } catch (e) { /* private mode - keep the in-memory values */ }
     },
@@ -63,15 +68,77 @@
           value: 'autoDash',
           desc: this.autoDash ? 'X 를 누르면 오히려 천천히 걷는다.' : 'X 를 눌러야 빨라진다.' },
         { label: '텍스트 속도', right: '◀ ' + TEXT_SPEEDS[this.text].label + ' ▶',
-          value: 'text', desc: '대사가 표시되는 속도.' }
+          value: 'text', desc: '대사가 표시되는 속도.' },
+        { label: '튜토리얼', right: '◀ ' + (this.tips ? '켜짐' : '꺼짐') + ' ▶',
+          value: 'tips', desc: '조작 안내를 한 줄씩 띄운다.' },
+        { label: '튜토리얼 초기화', right: '  Z', value: 'resetTips',
+          desc: '이미 본 안내를 다시 보이게 한다.' }
       ];
     },
     cycle: function (key, dir) {
       if (key === 'move') this.move = (this.move + dir + MOVE_SPEEDS.length) % MOVE_SPEEDS.length;
       else if (key === 'text') this.text = (this.text + dir + TEXT_SPEEDS.length) % TEXT_SPEEDS.length;
       else if (key === 'autoDash') this.autoDash = !this.autoDash;
+      else if (key === 'tips') this.tips = !this.tips;
+      else if (key === 'resetTips') { this.seenTips = {}; SH.Tips.clear(); }
       this.save();
       SH.Audio.sfx('move');
+    }
+  };
+
+  /* ==================================================================
+     tutorial tips - one short line at a time, each shown once
+     ================================================================== */
+  var Tips = SH.Tips = {
+    queue: [],
+    cur: null,
+    t: 0,
+
+    /* Fire a tip the first time its situation comes up. */
+    show: function (id, text, secs) {
+      if (!Settings.tips || Settings.seenTips[id]) return false;
+      Settings.seenTips[id] = true;
+      Settings.save();
+      this.queue.push({ text: text, secs: secs || 4.5 });
+      return true;
+    },
+    /* Always show, even if seen - for the guided opening. */
+    force: function (text, secs) {
+      this.queue.push({ text: text, secs: secs || 4.5 });
+    },
+    clear: function () { this.queue.length = 0; this.cur = null; },
+    active: function () { return !!this.cur; },
+
+    update: function (dt) {
+      if (!this.cur) {
+        if (!this.queue.length) return;
+        this.cur = this.queue.shift();
+        this.t = 0;
+        SH.Audio.sfx('tip');
+      }
+      this.t += dt;
+      /* confirm skips ahead once the line has had a moment to be read */
+      if (this.t > this.cur.secs || (this.t > 0.6 && SH.Input.pressed('confirm'))) {
+        this.cur = null;
+      }
+    },
+
+    draw: function () {
+      if (!this.cur) return;
+      var fade = Math.min(1, this.t * 5, (this.cur.secs - this.t) * 5);
+      if (fade <= 0) return;
+      var rows = SH.wrap(this.cur.text, SH.W - 40, 9);
+      var h = 12 + rows.length * 11;
+      var y = 22;
+      SH.ctx.save();
+      SH.ctx.globalAlpha = fade;
+      SH.rect(16, y, SH.W - 32, h, '#05050a');
+      SH.frameRect(16, y, SH.W - 32, h, '#ffd23f', 1);
+      rows.forEach(function (r, i) {
+        SH.text(r, SH.W / 2, y + 6 + i * 11,
+                { color: '#ffd23f', size: 9, align: 'center' });
+      });
+      SH.ctx.restore();
     }
   };
 
@@ -81,9 +148,11 @@
     this.i = 0;
   }
   OptionsPanel.prototype.rebuild = function () {
-    this.menu = new SH.Menu(Settings.menuItems(), { x: 54, y: 96, lh: 20, size: 11, rightX: 92 });
+    this.menu = new SH.Menu(Settings.menuItems(),
+                            { x: 46, y: 78, lh: 19, size: 11, rightX: 100 });
     this.menu.i = this.i;
   };
+  OptionsPanel.prototype.noTips = true;
   OptionsPanel.prototype.enter = function () { this.rebuild(); };
   OptionsPanel.prototype.update = function () {
     if (!this.menu) this.rebuild();
@@ -259,6 +328,8 @@
      ================================================================== */
   function Title() { this.t = 0; }
 
+  Title.prototype.noTips = true;
+
   Title.prototype.enter = function () {
     SH.Audio.play('title');
     var saved = Game.loadSave();
@@ -338,6 +409,7 @@
      route record screen
      ================================================================== */
   function RecordScreen() {}
+  RecordScreen.prototype.noTips = true;
   RecordScreen.prototype.update = function () {
     if (SH.Input.pressed('cancel') || SH.Input.pressed('confirm')) SH.pop();
   };
@@ -415,7 +487,7 @@
 
     function optionMenu() {
       var m = new SH.Menu(Settings.menuItems(),
-                          { x: 34, y: 56, lh: 19, size: 11, rightX: 92, descY: 178 });
+                          { x: 30, y: 48, lh: 17, size: 10, rightX: 104, descY: 178 });
       m.i = optIdx;
       return m;
     }
@@ -435,6 +507,7 @@
 
     return {
       drawUnder: true,
+      noTips: true,
       update: function () {
         if (SH.Input.pressed('menu')) { SH.pop(); return; }
         /* The SETTING tab consumes left/right for its own values, so tabs are
@@ -507,7 +580,7 @@
           else itemMenu.draw();
         } else if (tab === 3) {
           optionMenu().draw();
-          SH.text('← → 로 값 변경 · X 로 다른 탭으로', 34, 126,
+          SH.text('← → 로 값 변경 · X 로 다른 탭으로', 30, 144,
                   { color: '#6e6e88', size: 9 });
         } else if (tab === 2) {
           SH.Story.summary().forEach(function (l, i) {
@@ -531,6 +604,8 @@
      game over
      ================================================================== */
   function GameOver() { this.t = 0; }
+  GameOver.prototype.noTips = true;
+
   GameOver.prototype.enter = function () {
     SH.Audio.stop();
     this.menu = new SH.Menu([

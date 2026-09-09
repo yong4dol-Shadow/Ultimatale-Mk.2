@@ -24,6 +24,7 @@ SHADOW_PAL = {
     'W': '#f2f2f8', 'w': '#b6b6c8', 'E': '#ff3b45', 'e': '#6d0a12',
     'S': '#ffffff', 'Y': '#ffd23f', 'y': '#b8860b', 'C': '#d8232f',
     'c': '#8c1119', 'N': '#1a1420', 'n': '#4d3f48', 'J': '#7fdcff',
+    'o': '#ff7a1a', 'O2': '#ffd23f',
 }
 
 SUPER_PAL = dict(SHADOW_PAL)
@@ -238,24 +239,35 @@ MUZZLE_S = [
 ]
 
 
-def _small_leg(cv, hx, hy, phase, fur, shoe, accent, length=6.5):
+def _flame(cv, x, y, size=1.0, back=-1):
+    """The Air Shoes' rocket flame - red core, orange body, gold tip."""
+    cv.taper_line(x, y, x + back * 4.4 * size, y + 0.6, 1.9 * size, 0.7, 'r')
+    cv.taper_line(x, y, x + back * 3.4 * size, y + 0.4, 1.4 * size, 0.6, 'o')
+    cv.taper_line(x, y, x + back * 2.0 * size, y + 0.2, 0.9 * size, 0.5, 'O2')
+
+
+def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
+               length=6.5, stride=4.0, flame=0.0):
     swing = math.sin(phase)
     lift = max(0.0, math.cos(phase)) * 2.0
-    fx = hx + swing * 4.0
+    fx = hx + swing * stride
     fy = hy + length - lift
     cv.taper_line(hx, hy, fx, fy - 1.0, 1.7, 1.3, fur)
     cv.ellipse(fx + 0.4, fy - 0.2, 2.8, 1.6, shoe)
     cv.ellipse(fx + 1.4, fy - 0.6, 1.6, 1.1, accent)
     cv.rect(fx - 2.4, fy + 0.7, 6, 1, 'W')
+    if flame > 0:
+        # the trailing foot burns hardest; the pushing one only sputters
+        _flame(cv, fx - 2.6, fy + 0.2, flame)
 
 
 # Front view: both eyes at once, irises turned inward the way the source
 # sprites draw them.
 FRONT_EYES = [
-    '.OOO.OOO.',
-    'OSSIOISSO',
-    'OSSIOISSO',
-    '.OOO.OOO.',
+    '.OOO....OOO.',
+    'OSSIO..OISSO',
+    'OSSIO..OISSO',
+    '.OOO....OOO.',
 ]
 
 FRONT_MUZZLE = [
@@ -266,22 +278,27 @@ FRONT_MUZZLE = [
 ]
 
 
-def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide):
+def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=False):
     """Torso, arms and legs shared by all three overworld facings.
 
     `wide` spreads the limbs for the front and back views, where both of
     each are visible; the side view stacks them instead.
     """
+    ln = 5.8 if skate else 6.5
+    st = 5.6 if skate else 4.0
+    # flame strength follows each foot through the cycle
+    fa = (0.5 + 0.5 * math.cos(leg_a)) * 1.15 if skate else 0.0
+    fb = (0.5 + 0.5 * math.cos(leg_b)) * 1.0 if skate else 0.0
     if wide:
-        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c')
-        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C')
+        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, fb)
+        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, fa)
         cv.taper_line(tx - 4.0, ty - 1, tx - 4.8, ty + 3.6, 1.4, 1.1, 'f')
         cv.circle(tx - 4.8, ty + 4.4, 1.5, 'w')
         cv.taper_line(tx + 4.0, ty - 1, tx + 4.8, ty + 3.6, 1.5, 1.2, 'F')
         cv.circle(tx + 4.8, ty + 4.4, 1.6, 'W')
     else:
-        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r')
-        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C')
+        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r', ln, st, fb)
+        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C', ln, st, fa)
         cv.taper_line(tx + 0.6, ty - 1, tx - 1.4, ty + 4, 1.4, 1.1, 'f')
         cv.taper_line(tx + 2.2, ty - 1.2, tx + 2.2 + arm_swing * 3.0, ty + 4.0, 1.5, 1.2, 'F')
         cv.circle(tx + 2.2 + arm_swing * 3.0, ty + 4.6, 1.6, 'W')
@@ -289,20 +306,11 @@ def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide):
         cv.px(tx - 3.4, ty + 1, 'R') if wide else None
 
 
-def _skate_dust(cv, x, y, n=4, phase=0.0):
-    """Hover-skate exhaust: the jets under the Air Shoes."""
-    for i in range(n):
-        off = (i + phase) % n
-        cv.px(x - off * 2.2, y + (i % 2), 'J')
-        if i % 2 == 0:
-            cv.px(x - off * 2.2, y + 2, 'c')
-
-
 def _ow_side(cv, kind, pose, ang, striped):
     bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
     if pose == 'skate':
-        # crouched forward over the Air Shoes, feet together and gliding
-        hx, hy = 16.6, 10.4
+        # crouched forward over the Air Shoes, riding low
+        hx, hy = 16.6, 10.4 - abs(math.sin(ang)) * 0.6
         tx, ty = 12.4, 18.2
         hip = 21.6
     else:
@@ -313,7 +321,9 @@ def _ow_side(cv, kind, pose, ang, striped):
     if pose == 'walk':
         leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi)
     elif pose == 'skate':
-        leg_a, leg_b, arm = 1.25, 1.05, -1.1
+        # a real push/glide cycle: the feet alternate, one pushing back
+        # while the other glides forward
+        leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi) * 0.8
     else:
         leg_a, leg_b, arm = 0.5, -0.5, 0.35
 
@@ -330,7 +340,7 @@ def _ow_side(cv, kind, pose, ang, striped):
         _quill(cv, hx + dx, hy + dy, deg - swept, ln, w0, 0.7, stripe=striped)
     cv.taper_line(tx - 3, hip - 2, tx - 6, hip - 4, 1.4, 0.5, 'F')
 
-    _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False)
+    _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False, pose == 'skate')
 
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
@@ -339,8 +349,7 @@ def _ow_side(cv, kind, pose, ang, striped):
     if striped:
         cv.px(hx - 1.0, hy - 5.0, 'R')
         cv.px(hx + 0.0, hy - 5.0, 'R')
-    if pose == 'skate':
-        _skate_dust(cv, 11, 26, 4, ang / 3.2)
+
 
 
 def _ow_front(cv, kind, pose, ang, striped, back):
@@ -353,7 +362,7 @@ def _ow_front(cv, kind, pose, ang, striped, back):
     if pose == 'walk':
         leg_a, leg_b = ang, ang + math.pi
     elif pose == 'skate':
-        leg_a, leg_b = 0.9, 0.9
+        leg_a, leg_b = ang, ang + math.pi
     else:
         leg_a, leg_b = 0.4, -0.4
 
@@ -373,7 +382,7 @@ def _ow_front(cv, kind, pose, ang, striped, back):
                         hy - 2.8 + i * 2.2 + math.sin(a) * (ln - i * 0.6 - 1.4), 'R')
     _quill(cv, hx, hy - 3.8, 270, 3.0, 1.9, 0.8)
 
-    _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True)
+    _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True, pose == 'skate')
     cv.ellipse(tx, ty - 1.0, 2.4, 2.6, 'w' if back else 'W')      # chest / back fur
 
     cv.ellipse(hx, hy, 6.4, 5.6, 'F')                              # skull
@@ -392,14 +401,12 @@ def _ow_front(cv, kind, pose, ang, striped, back):
             cv.line(hx - 3, hy - 3, hx + 3, hy - 3, 'R')
     else:
         cv.stamp(FRONT_MUZZLE, hx - 3, hy + 1)
-        cv.stamp(FRONT_EYES, hx - 4, hy - 3, {'I': 'E'})
+        cv.stamp(FRONT_EYES, hx - 6, hy - 3, {'I': 'E'})
         if striped:
             cv.line(hx - 5, hy - 4, hx - 2, hy - 4, 'R')
             cv.line(hx + 2, hy - 4, hx + 5, hy - 4, 'R')
 
-    if pose == 'skate':
-        _skate_dust(cv, hx - 4, 26, 3, ang / 3.2)
-        _skate_dust(cv, hx + 6, 26, 3, ang / 3.2)
+
 
 
 def hedgehog_small(kind='shadow', pose='idle', t=0.0, facing='side'):
@@ -417,6 +424,19 @@ def hedgehog_small(kind='shadow', pose='idle', t=0.0, facing='side'):
     cv.shade('W', 'w')
     cv.shade('C', 'c')
     return cv
+
+
+def _pistol(cv, x, y, flash=False):
+    """The sidearm Shadow carries in the 2005 game, plus its muzzle flash."""
+    cv.rect(x - 1, y - 1, 8, 3, 'w')                     # slide
+    cv.rect(x - 1, y - 1, 8, 1, 'W')
+    cv.rect(x + 5, y + 0.4, 2, 2, 'f')                   # muzzle block
+    cv.rect(x - 1, y + 1.6, 3, 3, 'f')                   # grip
+    cv.px(x + 1, y + 1.6, 'w')
+    if flash:
+        cv.ellipse(x + 8.4, y + 0.4, 2.6, 2.2, 'o')
+        cv.ellipse(x + 7.8, y + 0.4, 1.7, 1.4, 'O2')
+        cv.px(x + 7.2, y + 0.4, 'W')
 
 
 def _finish(cv):
@@ -453,6 +473,10 @@ def hedgehog(kind='shadow', pose='idle', t=0.0, bob=0.0):
     elif pose == 'attack':
         leg_a, leg_b = -0.6, 0.7
         arm_a, arm_b = -1.35, 0.5
+    elif pose == 'shoot':
+        # braced firing stance: front arm straight out, weight on the back leg
+        leg_a, leg_b = -0.35, 0.75
+        arm_a, arm_b = -1.52, 0.55
     elif pose == 'hurt':
         hx += 1.5
         leg_a, leg_b = 0.9, -0.9
@@ -482,7 +506,26 @@ def hedgehog(kind='shadow', pose='idle', t=0.0, bob=0.0):
 
     _leg(cv, torso_x + 1.6, hip_y, leg_a, 'F', 'F', 'C', ring=striped, rim=True)
     _head(cv, hx, hy, ear=True, stripe_eye=striped, pal_eye='E')
-    _arm(cv, torso_x + 3.6, torso_y - 0.5, arm_a, 'F', glove='W', ring=striped, rim=True, length=7.0)
+    if pose == 'shoot':
+        # _arm() only swings; it cannot raise, so the firing arm is drawn
+        # straight out at chest height instead
+        sx, sy = torso_x + 3.0, torso_y - 1.5
+        ex, ey = sx + 5.0, sy - 0.6
+        cv.taper_line(sx, sy, ex, ey, 2.8, 2.4, 'O')
+        cv.circle(ex, ey, 2.9, 'O')
+        cv.taper_line(sx, sy, ex, ey, 2.0, 1.6, 'F')
+        if striped:
+            cv.line(sx + 1, sy - 1.6, sx + 4, sy - 1.8, 'R')
+            cv.line(ex - 1.6, ey - 2.4, ex + 0.4, ey - 2.4, 'Y')   # limiter ring
+        cv.circle(ex, ey, 1.9, 'W')
+        # only Shadow carries the sidearm; the others just throw a punch
+        if striped:
+            # the muzzle flash is drawn by the battle scene, not baked in -
+            # at this cell width it would run off the right edge
+            _pistol(cv, ex + 1.8, ey - 0.8)
+    else:
+        _arm(cv, torso_x + 3.6, torso_y - 0.5, arm_a, 'F', glove='W',
+             ring=striped, rim=True, length=7.0)
 
     if pose == 'attack':                                        # Chaos energy
         for i in range(7):

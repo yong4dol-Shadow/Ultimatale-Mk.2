@@ -251,7 +251,43 @@
         case 'unlock':  [392, 523, 659, 880].forEach(function (f, i) { tone(f, t + i * 0.08, 0.2, 0.13, 'pulse25'); }); break;
         case 'deny':    tone(180, t, 0.16, 0.15, 'saw'); tone(140, t + 0.1, 0.16, 0.15, 'saw'); break;
         case 'encounter': tone(1200, t, 0.08, 0.16, 'pulse12'); tone(900, t + 0.09, 0.08, 0.16, 'pulse12'); tone(600, t + 0.18, 0.22, 0.18, 'saw', 0.4); break;
-        case 'chaos':   [220, 440, 880, 1760].forEach(function (f, i) { tone(f, t + i * 0.04, 0.3, 0.14, 'saw', 0.6); }); break;
+        /* Chaos Spear: a rising charge that snaps into a hard discharge */
+        case 'chaos':
+          [180, 300, 520, 900, 1500].forEach(function (f, i) {
+            tone(f, t + i * 0.035, 0.22, 0.15, 'saw', 0.75);
+          });
+          tone(2400, t + 0.16, 0.16, 0.20, 'pulse12', 0.18);
+          tone(120, t + 0.16, 0.36, 0.24, 'saw', 0.4);
+          drum('s', t + 0.16, 0.7);
+          break;
+        /* Chaos Blast: detonation - sub drop, noise burst, ringing tail */
+        case 'blast':
+          tone(90, t, 0.9, 0.30, 'saw', 0.22);
+          tone(160, t, 0.7, 0.24, 'tri', 0.25);
+          drum('k', t, 1.3); drum('k', t + 0.05, 1.0);
+          drum('s', t + 0.02, 1.1); drum('s', t + 0.14, 0.8);
+          [1800, 1200, 760, 440].forEach(function (f, i) {
+            tone(f, t + 0.02 + i * 0.05, 0.5, 0.16, 'saw', 0.3);
+          });
+          tone(60, t + 0.3, 0.8, 0.18, 'tri', 0.5);
+          break;
+        /* Chaos Control: time folding - a shimmer that bends downward */
+        case 'control':
+          [1568, 1318, 1046, 880, 698].forEach(function (f, i) {
+            tone(f, t + i * 0.055, 0.5, 0.11, 'pulse25', 0.55);
+          });
+          tone(440, t + 0.28, 0.7, 0.13, 'tri', 1.6);
+          tone(2093, t, 0.25, 0.07, 'pulse12', 0.5);
+          break;
+        /* the sidearm */
+        case 'gunshot':
+          drum('s', t, 1.0);
+          tone(320, t, 0.10, 0.24, 'saw', 0.18);
+          tone(1500, t, 0.05, 0.16, 'pulse12', 0.25);
+          tone(90, t + 0.02, 0.20, 0.16, 'tri', 0.4);
+          break;
+        case 'reload':  tone(700, t, 0.04, 0.09, 'pulse25'); tone(500, t + 0.07, 0.05, 0.09, 'pulse25'); break;
+        case 'tip':     [880, 1175].forEach(function (f, i) { tone(f, t + i * 0.06, 0.12, 0.09, 'pulse25'); }); break;
         case 'text':    tone(1320, t, 0.02, 0.05, 'pulse12'); break;
       }
     }

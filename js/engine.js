@@ -245,6 +245,29 @@
     SH.frameRect(x, y, w, h, o.border || '#f2f2f8', o.lw || 2);
   };
 
+  /* A filled ellipse drawn as scanline rects, so it stays on the pixel
+     grid instead of picking up canvas antialiasing. */
+  SH.ellipseFill = function (cx, cy, rx, ry, col) {
+    ctx.fillStyle = col;
+    for (var dy = -Math.ceil(ry); dy <= Math.ceil(ry); dy++) {
+      var t = 1 - (dy * dy) / (ry * ry);
+      if (t <= 0) continue;
+      var w = Math.sqrt(t) * rx;
+      ctx.fillRect(Math.round(cx - w), Math.round(cy + dy), Math.max(1, Math.round(w * 2)), 1);
+    }
+  };
+
+  /* The soft blob every actor and prop stands on. Two nested ellipses read
+     as a falloff at this resolution and stop the sprites looking pasted on. */
+  SH.groundShadow = function (cx, cy, rx, ry, alpha) {
+    ctx.save();
+    ctx.globalAlpha = (alpha === undefined ? 0.42 : alpha) * 0.55;
+    SH.ellipseFill(cx, cy, rx, ry, '#000');
+    ctx.globalAlpha = (alpha === undefined ? 0.42 : alpha);
+    SH.ellipseFill(cx, cy, rx * 0.62, ry * 0.62, '#000');
+    ctx.restore();
+  };
+
   SH.bar = function (x, y, w, h, pct, fill, back) {
     pct = Math.max(0, Math.min(1, pct));
     SH.rect(x, y, w, h, back || '#3a0d12');
@@ -338,6 +361,10 @@
       if (stack[i].updateAlways) stack[i].updateAlways(dt);
     }
     if (top && top.update) top.update(dt);
+    /* tips are non-modal, but they hold until a scene that wants them:
+       a menu screen should not have a tutorial line pasted over its title */
+    var wantsTips = SH.Tips && !(top && top.noTips);
+    if (wantsTips) SH.Tips.update(dt);
 
     /* draw */
     tctx.save();
@@ -359,6 +386,7 @@
       if (j < stack.length - 1 && !sc.drawUnder) continue;
       if (sc.draw) sc.draw();
     }
+    if (wantsTips) SH.Tips.draw();
     ctx.restore();
     tctx.restore();
 

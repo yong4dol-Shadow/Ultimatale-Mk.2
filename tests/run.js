@@ -52,7 +52,8 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   page.on('pageerror', e => errors.push('PAGEERROR: ' + e.message));
   page.on('console', m => {
     const t = m.text();
-    if (m.type() === 'error' || (m.type() === 'warning' && !/AudioContext/.test(t))) {
+    if (m.type() === 'error' ||
+        (m.type() === 'warning' && !/AudioContext|willReadFrequently/.test(t))) {
       errors.push(m.type().toUpperCase() + ': ' + t);
     }
   });
@@ -81,7 +82,8 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
       backing: t.width, css: Math.round(t.getBoundingClientRect().width),
       screenCss: Math.round(s.getBoundingClientRect().width),
       painted: (() => {
-        const d = t.getContext('2d').getImageData(0, 0, t.width, t.height).data;
+        const d = t.getContext('2d', { willReadFrequently: true })
+                   .getImageData(0, 0, t.width, t.height).data;
         for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true;
         return false;
       })()
@@ -184,7 +186,40 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('overworld sheet carries all three facings x idle/walk/skate',
     ['idle', 'walk', 'skate', 'down_idle', 'down_walk', 'down_skate',
      'up_idle', 'up_walk', 'up_skate'].every(n => facing.names.includes(n)) &&
-    facing.frames === 24);
+    facing.frames >= 24);
+
+  /* ---- the skate cycle has to actually alternate feet ---------------- */
+  const skate = await page.evaluate(() => {
+    const s = SH.Assets.sheet('shadow_ow');
+    const c = document.createElement('canvas');
+    c.width = s.fw; c.height = s.fh;
+    const g = c.getContext('2d', { willReadFrequently: true });
+    // hash two opposite frames of the side skate cycle; a static pose would
+    // make them identical
+    const hash = f => {
+      const sx = (f % s.cols) * s.fw, sy = ((f / s.cols) | 0) * s.fh;
+      g.clearRect(0, 0, s.fw, s.fh);
+      g.drawImage(s.img, sx, sy, s.fw, s.fh, 0, 0, s.fw, s.fh);
+      const d = g.getImageData(0, 0, s.fw, s.fh).data;
+      let h = 0;
+      for (let i = 0; i < d.length; i += 4) h = (h * 31 + d[i] + d[i + 3] * 7) | 0;
+      return h;
+    };
+    const frames = s.names.skate;
+    // flame pixels: warm colours that were not in the palette before
+    const sx = (frames[0] % s.cols) * s.fw, sy = ((frames[0] / s.cols) | 0) * s.fh;
+    g.clearRect(0, 0, s.fw, s.fh);
+    g.drawImage(s.img, sx, sy, s.fw, s.fh, 0, 0, s.fw, s.fh);
+    const d = g.getImageData(0, 0, s.fw, s.fh).data;
+    let warm = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] > 128 && d[i] > 200 && d[i + 1] > 90 && d[i + 2] < 90) warm++;
+    }
+    return { count: frames.length, a: hash(frames[0]), b: hash(frames[2]), warm: warm };
+  });
+  check('skate is a four-frame cycle', skate.count === 4);
+  check('opposite skate frames differ (feet alternate)', skate.a !== skate.b);
+  check('skate frames show a red/orange flame', skate.warm >= 6);
 
   /* ---- maps are bigger than one screen in both directions ------------ */
   const mapSize = await page.evaluate(() =>
@@ -268,6 +303,86 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('bullets spawn on the enemy turn',
     await page.evaluate(() => SH.scenes[1].bullets.length > 0));
   check('grazing charges TP', await page.evaluate(() => SH.Game.tp >= 0));
+
+  /* ---- the attack is a single sweep and fires the sidearm ------------ */
+  const gunshot = await page.evaluate(async () => {
+    const b = new SH.Battle(['gun_soldier'], {});
+    SH.push(b);
+    b.startAttackBar(b.enemies[0]);
+    const start = b.bar.x;
+    for (let i = 0; i < 30; i++) b.update(1 / 60);   // half a second in
+    const mid = b.bar.x;
+    b.bar.x = 0;                                     // dead centre
+    b.resolveAttack();
+    const shooting = b.state === 'shooting' && !!b.tracer;
+    const pose = b.shadowPose;
+    for (let i = 0; i < 30; i++) b.update(1 / 60);   // let the tracer land
+    const resolved = b.state === 'message';
+    const hp = b.enemies[0].hp;
+    SH.pop();
+    return { start, mid, shooting, pose, resolved, hp,
+             frames: Object.keys(SH.Assets.sheet('shadow').names) };
+  });
+  await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier', 'black_warrior'], {});
+    SH.push(b);
+    b.state = 'menu';
+    b.startAttackBar(b.enemies[0]);
+    b.bar.x = 0.05;
+  });
+  await page.waitForTimeout(250);
+  await shot('12_attack_bar');
+  const shotState = await page.evaluate(() => {
+    const b = SH.scenes[SH.scenes.length - 1];
+    b.bar.x = 0;
+    b.resolveAttack();
+    b.tracer.t = 0.09;
+    return { state: b.state, pose: b.shadowPose };
+  });
+  await page.waitForTimeout(50);
+  await shot('13_gunshot');
+  check('the gunshot frame is the shoot pose',
+    shotState.state === 'shooting' && shotState.pose === 'shoot');
+  await page.evaluate(() => { SH.pop(); });
+  await page.waitForTimeout(150);
+
+  check('the attack bar starts at one end and sweeps one way',
+    gunshot.start === -1 && gunshot.mid > gunshot.start);
+  check('firing plays the gun pose with a tracer',
+    gunshot.shooting === true && gunshot.pose === 'shoot');
+  check('the battle sheet has a shoot frame', gunshot.frames.includes('shoot'));
+  check('the shot lands and damages the target',
+    gunshot.resolved === true && gunshot.hp < 34);
+
+  /* ---- chaos sound effects all exist --------------------------------- */
+  const sfx = await page.evaluate(() => {
+    const missing = [];
+    ['chaos', 'blast', 'control', 'gunshot', 'tip'].forEach(n => {
+      try { SH.Audio.sfx(n); } catch (e) { missing.push(n + ': ' + e.message); }
+    });
+    return missing;
+  });
+  check('chaos / blast / control / gunshot effects play without error', sfx.length === 0);
+
+  /* ---- tutorial tips ------------------------------------------------- */
+  const tips = await page.evaluate(() => {
+    SH.Tips.clear();
+    SH.Settings.tips = true; SH.Settings.seenTips = {};
+    const first = SH.Tips.show('probe', '테스트');
+    const again = SH.Tips.show('probe', '테스트');       // only once
+    SH.Settings.tips = false;
+    const off = SH.Tips.show('probe2', '테스트');        // suppressed
+    SH.Settings.tips = true; SH.Settings.seenTips = {}; SH.Settings.save();
+    SH.Tips.clear();
+    return { first, again, off };
+  });
+  check('a tip fires once and only once', tips.first === true && tips.again === false);
+  check('tips can be switched off', tips.off === false);
+
+  /* ---- ground shadows ------------------------------------------------ */
+  check('the engine exposes a ground-shadow helper',
+    await page.evaluate(() => typeof SH.groundShadow === 'function' &&
+                              typeof SH.ellipseFill === 'function'));
 
   /* ---- Chaos Blast and the renamed Chaos Control --------------------- */
   const chaos = await page.evaluate(() => {

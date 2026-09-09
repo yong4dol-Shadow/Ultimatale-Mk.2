@@ -259,6 +259,9 @@
     this.patternClock = 0;
     this.chaosFrozen = 0;
     this.chaosPending = 0;
+    this.tpFlash = 0;
+    this.tracer = null;
+    this.pendingShot = null;
     this.anim = 0;
     this.shadowPose = 'idle';
     this.poseTimer = 0;
@@ -313,6 +316,7 @@
     SH.Story.recordBattle();
     var names = this.enemies.map(function (e) { return e.name; }).join(', ');
     var self = this;
+    SH.Tips.show('bt_intro', '← → 로 행동을 고르고 Z 로 결정.  FIGHT 는 처치, ACT·MERCY 는 살려보내기.');
     this.say([{ text: names + ' 이(가) 앞을 막아섰다!' }], function () { self.beginPlayerTurn(); });
   };
 
@@ -425,6 +429,7 @@
     this.soul.iframe = 0.4;
     this.enemyLine = SH.choice(src.def.says);
     src.anim = 2;
+    SH.Tips.show('bt_dodge', '적 턴이다.  방향키로 하트를 움직여 탄막을 피해라.  X 를 누르면 천천히 움직인다.');
   };
 
   Battle.prototype.endEnemyTurn = function (dead) {
@@ -476,9 +481,13 @@
       var near = ddx < b.w / 2 + 12 && ddy < b.h / 2 + 12;
       var hit = ddx < b.w / 2 + 3 && ddy < b.h / 2 + 3;
       if (near && !hit) {
-        var G = this.G();
-        if (G) G.tp = Math.min(G.maxtp, G.tp + 22 * dt);
-        if (!b.grazed) { b.grazed = true; SH.Audio.sfx('graze'); this.addFx('hud', b.x, b.y, 1, 0.2); }
+        this.gainTp(22 * dt);
+        if (!b.grazed) {
+          b.grazed = true;
+          SH.Audio.sfx('graze');
+          this.addFx('hud', b.x, b.y, 1, 0.2);
+          SH.Tips.show('bt_graze', 'TP 는 0에서 시작한다.  탄에 스치거나 명중시키면 차오른다.');
+        }
       }
       if (hit && !b.harmless && b.dmg > 0) this.hurtPlayer(b.dmg);
 
@@ -559,7 +568,10 @@
 
   Battle.prototype.startAttackBar = function (e) {
     this.state = 'attackbar';
-    this.bar = { x: 0, dir: 1, speed: 1.75, hit: null, t: 0, target: e };
+    /* UNDERTALE's bar: the cursor makes one pass across the meter and you
+       press once. Let it run off the end and the swing misses. */
+    this.bar = { x: -1, dir: 1, speed: 1.15, t: 0, target: e };
+    SH.Tips.show('bt_fight', '바가 한가운데를 지날 때 Z!  정확할수록 세게 들어간다.');
   };
 
   Battle.prototype.resolveAttack = function () {
@@ -567,24 +579,48 @@
     var acc = 1 - Math.abs(bar.x);                 // bar.x is -1..1, 0 is perfect
     var grade = acc > 0.92 ? 'PERFECT' : (acc > 0.7 ? 'GREAT' : (acc > 0.4 ? 'GOOD' : 'MISS'));
     var self = this;
-    this.setPose('attack', 0.5);
 
-    if (grade === 'MISS') {
-      SH.Audio.sfx('cancel');
-      this.say([{ text: 'MISS! 공격이 빗나갔다.' }], function () { self.startEnemyTurn(); });
-      return;
+    /* Shadow's sidearm: fire the shot, fly a tracer over, then land it */
+    this.setPose('shoot', grade === 'MISS' ? 0.5 : 0.75);
+    SH.Audio.sfx('gunshot');
+    this.state = 'shooting';
+    /* the barrel sits about here once the shoot frame is drawn at x=62 */
+    this.tracer = { x: 84, y: GROUND - 40, tx: e.x, ty: GROUND - 26, t: 0,
+                    dur: 0.22, miss: grade === 'MISS' };
+    this.pendingShot = function () {
+      if (grade === 'MISS') {
+        SH.Audio.sfx('cancel');
+        self.say([{ text: 'MISS! 총알이 빗나갔다.' }], function () { self.startEnemyTurn(); });
+        return;
+      }
+      var mult = { PERFECT: 2.2, GREAT: 1.6, GOOD: 1.15 }[grade];
+      var dmg = Math.max(1, Math.round((G.atk + SH.rand(-2, 2)) * mult - e.def_));
+      self.hitEnemy(e, dmg);
+      self.gainTp(8);
+      var lines = [{ text: grade + '!  ' + e.name + ' 에게 ' + dmg + ' 데미지.' }];
+      if (!e.alive) lines.push({ text: e.def.onKill });
+      self.say(lines, function () {
+        if (!self.living().length) self.finish('win');
+        else self.startEnemyTurn();
+      });
+    };
+  };
+
+  /* TP is the whole point of the two Chaos moves, so call it out the first
+     time each threshold is crossed. */
+  Battle.prototype.gainTp = function (n) {
+    var G = this.G();
+    if (!G) return;
+    var before = G.tp;
+    G.tp = Math.min(G.maxtp, G.tp + n);
+    if (before < 40 && G.tp >= 40) {
+      this.tpFlash = 1.0;
+      SH.Tips.show('bt_tp40', 'TP 40!  ACT 목록에서 카오스 스피어(적 전체 관통)를 쏠 수 있다.');
     }
-    var mult = { PERFECT: 2.2, GREAT: 1.6, GOOD: 1.15 }[grade];
-    var dmg = Math.max(1, Math.round((G.atk + SH.rand(-2, 2)) * mult - e.def_));
-    SH.Audio.sfx('slash');
-    this.hitEnemy(e, dmg);
-    G.tp = Math.min(G.maxtp, G.tp + 8);
-    var lines = [{ text: grade + '!  ' + e.name + ' 에게 ' + dmg + ' 데미지.' }];
-    if (!e.alive) lines.push({ text: e.def.onKill });
-    this.say(lines, function () {
-      if (!self.living().length) self.finish('win');
-      else self.startEnemyTurn();
-    });
+    if (before < 100 && G.tp >= 100) {
+      this.tpFlash = 1.2;
+      SH.Tips.show('bt_tp100', 'TP 최대!  ACT 의 카오스 블래스트는 방어를 무시하고 전체를 태운다.');
+    }
   };
 
   Battle.prototype.doAct = function (e, idx) {
@@ -601,6 +637,7 @@
     var lines = a.text.map(function (t) { return { text: t }; });
     if (this.isSpareable(e)) {
       lines.push({ text: '※ ' + e.name + ' 의 이름이 노랗게 빛난다. 이제 SPARE 할 수 있다.' });
+      SH.Tips.show('bt_spare', '이름이 노랗게 빛나면 MERCY → SPARE 로 살려보낼 수 있다.');
     }
     this.say(lines, function () { self.startEnemyTurn(); });
   };
@@ -609,7 +646,8 @@
     var G = this.G(), self = this;
     G.tp -= 40;
     SH.Audio.sfx('chaos');
-    SH.flash('#7fdcff', 0.2);
+    SH.flash('#7fdcff', 0.28);
+    SH.shake(5, 0.3);
     this.setPose('attack', 0.6);
     var lines = [{ text: '카오스... 스피어!' }];
     this.living().forEach(function (e) {
@@ -628,10 +666,9 @@
   Battle.prototype.doBlast = function () {
     var G = this.G(), self = this;
     G.tp -= 100;
-    SH.Audio.sfx('chaos');
-    SH.Audio.sfx('kill');
-    SH.flash('#ff8a1f', 0.4);
-    SH.shake(9, 0.6);
+    SH.Audio.sfx('blast');
+    SH.flash('#ff8a1f', 0.5);
+    SH.shake(12, 0.8);
     this.setPose('attack', 0.9);
     var lines = [{ text: '카오스... 블래스트!!' }];
     this.living().forEach(function (e) {
@@ -671,7 +708,8 @@
   Battle.prototype.doFlee = function () {
     var self = this;
     SH.Story.recordFlee();
-    SH.Audio.sfx('chaos');
+    SH.Audio.sfx('control');
+    SH.flash('#c0ff3c', 0.3);
     this.say([{ text: '카오스 컨트롤!' }], function () { self.finish('flee'); });
   };
 
@@ -688,6 +726,7 @@
        player read the message that announced it, so it expired unused */
     if (this.state === 'enemyturn' && this.chaosFrozen > 0) this.chaosFrozen -= dt;
     if (this.soul.iframe > 0) this.soul.iframe -= dt;
+    if (this.tpFlash > 0) this.tpFlash -= dt;
     if (this.dmgPop) { this.dmgPop.t -= dt; if (this.dmgPop.t <= 0) this.dmgPop = null; }
     this.enemies.forEach(function (e) {
       if (e.flash > 0) e.flash -= dt;
@@ -703,6 +742,18 @@
       case 'message':
         if (this.msg) this.msg.update(dt);
         break;
+
+      case 'shooting': {
+        var tr = this.tracer;
+        tr.t += dt;
+        if (tr.t >= tr.dur) {
+          this.tracer = null;
+          var go = this.pendingShot;
+          this.pendingShot = null;
+          if (go) go();
+        }
+        break;
+      }
 
       case 'menu':
         if (SH.Input.pressed('right')) { this.btn = (this.btn + 1) % 4; SH.Audio.sfx('move'); }
@@ -767,12 +818,10 @@
 
       case 'attackbar':
         this.bar.t += dt;
-        this.bar.x += this.bar.dir * this.bar.speed * dt * 2;
-        if (this.bar.x > 1) { this.bar.x = 1; this.bar.dir = -1; }
-        if (this.bar.x < -1) { this.bar.x = -1; this.bar.dir = 1; }
+        this.bar.x += this.bar.speed * dt * 2;
         if (SH.Input.pressed('confirm')) this.resolveAttack();
         else if (SH.Input.pressed('cancel')) { SH.Audio.sfx('cancel'); this.state = 'menu'; }
-        else if (this.bar.t > 4) { this.bar.x = 1; this.resolveAttack(); }
+        else if (this.bar.x > 1.15) { this.bar.x = 1.2; this.resolveAttack(); }
         break;
 
       case 'enemyturn': {
@@ -822,9 +871,16 @@
     /* Shadow - left, facing right (DELTARUNE-style stand-off) */
     var sheet = this.superForm ? 'shadow_super' : 'shadow';
     var f;
-    if (this.shadowPose === 'attack') f = SH.frameOf(sheet, 'attack', (this.anim * 10) | 0);
-    else f = SH.frameOf(sheet, 'idle', (this.anim * 3) | 0);
+    if (this.shadowPose === 'shoot') {
+      /* the recoil frame carries the muzzle flash, so hold it briefly */
+      f = SH.frameOf(sheet, this.poseTimer > 0.45 ? 'shoot' : 'aim', 0);
+    } else if (this.shadowPose === 'attack') {
+      f = SH.frameOf(sheet, 'attack', (this.anim * 10) | 0);
+    } else {
+      f = SH.frameOf(sheet, 'idle', (this.anim * 3) | 0);
+    }
     var bob = Math.sin(this.anim * 3) * 1;
+    SH.groundShadow(62, GROUND + 1, 11, 3.4, 0.42);
     SH.drawFoot(sheet, f, 62, GROUND + bob);
     if (this.superForm) {
       for (var k = 0; k < 6; k++) {
@@ -843,14 +899,32 @@
       var op = { flip: true };
       if (e.flash > 0 && Math.floor(e.flash * 20) % 2 === 0) op.alpha = 0.35;
       var float = e.hover ? Math.sin(self.anim * 2 + e.x) * 2 : 0;
-      if (e.hover) {                       /* airborne units cast a ground shadow */
-        SH.ctx.save();
-        SH.ctx.globalAlpha = 0.3;
-        SH.rect(e.x - 10, GROUND - 1, 20, 4, '#000');
-        SH.ctx.restore();
-      }
+      var sh0 = SH.Assets.sheet(e.sheet);
+      var srx = (sh0 ? sh0.fw : 40) * 0.3;
+      /* airborne units cast a smaller, fainter shadow the higher they float */
+      SH.groundShadow(e.x + sx, GROUND + 1, e.hover ? srx * 0.8 : srx,
+                      3.4, e.hover ? 0.26 : 0.42);
       SH.drawFoot(e.sheet, fr, e.x + sx, GROUND - e.hover + float, op);
     });
+
+    /* the tracer from Shadow's sidearm */
+    if (this.tracer) {
+      var tr = this.tracer, k = tr.t / tr.dur;
+      var bx = SH.lerp(tr.x, tr.tx, k);
+      var by = SH.lerp(tr.y, tr.ty, k) + (tr.miss ? -k * k * 26 : 0);
+      for (var q = 0; q < 4; q++) {
+        SH.rect(bx - q * 5, by + q * 0.4, 4, 2, q ? '#ffd23f' : '#ffffff');
+      }
+      if (k < 0.45) {                       /* muzzle flash at the barrel */
+        var fa = 1 - k / 0.45;
+        SH.ctx.save();
+        SH.ctx.globalAlpha = fa;
+        SH.ellipseFill(tr.x + 2, tr.y, 5 * fa + 2, 4 * fa + 1.5, '#ff8a1f');
+        SH.ellipseFill(tr.x + 1, tr.y, 3 * fa + 1, 2.4 * fa + 1, '#ffd23f');
+        SH.ellipseFill(tr.x, tr.y, 1.6 * fa + 0.6, 1.4 * fa + 0.6, '#ffffff');
+        SH.ctx.restore();
+      }
+    }
 
     this.fx.forEach(function (f2) {
       var i = Math.min(f2.n - 1, Math.floor(f2.t / f2.dur * f2.n));
@@ -869,8 +943,14 @@
     SH.text('HP', 96, 4, { color: '#f2f2f8', size: 10 });
     SH.bar(114, 5, 60, 8, G.hp / G.maxhp, '#d8232f', '#3a0d12');
     SH.text(Math.max(0, Math.ceil(G.hp)) + '/' + G.maxhp, 178, 4, { color: '#f2f2f8', size: 9 });
-    SH.text('TP', 226, 4, { color: '#7fdcff', size: 10 });
-    SH.bar(242, 5, 60, 8, G.tp / G.maxtp, '#7fdcff', '#0e2a38');
+    var tpCol = this.tpFlash > 0 && Math.floor(this.tpFlash * 12) % 2 === 0
+      ? '#ffffff' : '#7fdcff';
+    SH.text('TP', 222, 4, { color: tpCol, size: 10 });
+    SH.bar(238, 5, 46, 8, G.tp / G.maxtp, tpCol, '#0e2a38');
+    /* the two spend thresholds, marked on the bar itself */
+    SH.rect(238 + 46 * 0.4, 4, 1, 10, G.tp >= 40 ? '#c0ff3c' : '#3f5f6f');
+    SH.text(Math.floor(G.tp) + '', 318, 4,
+            { color: tpCol, size: 9, align: 'right' });
     if (this.dmgPop) {
       SH.text('-' + this.dmgPop.v, 62, GROUND - 56 - (0.8 - this.dmgPop.t) * 14,
               { color: '#ff5a5a', size: 12, bold: true, align: 'center' });
@@ -944,9 +1024,10 @@
     SH.rect(cx - 22, y - 12, 44, 24, '#5a3a10');
     SH.rect(cx - 6, y - 12, 12, 24, '#7a5a12');
     SH.rect(cx - 1, y - 14, 2, 28, '#ffd23f');
-    var px = cx + this.bar.x * (b.w / 2 - 16);
+    var px = cx + SH.clamp(this.bar.x, -1.1, 1.1) * (b.w / 2 - 16);
     SH.rect(px - 2, y - 16, 4, 32, '#f2f2f8');
-    SH.text('Z 키로 타이밍을 맞춰라', cx, b.y + 8, { color: '#9b9bb4', size: 9, align: 'center' });
+    SH.text('한 번만 지나간다 - 중앙에서 Z!', cx, b.y + 8,
+            { color: '#9b9bb4', size: 9, align: 'center' });
     SH.text(this.bar.target.name, cx, b.y + b.h - 16, { color: '#ffd23f', size: 10, align: 'center' });
   };
 
@@ -974,6 +1055,9 @@
       this.drawBox();
     } else if (this.state === 'attackbar') {
       this.drawAttackBar();
+    } else if (this.state === 'shooting') {
+      SH.panel(8, 130, 304, 82, { fill: '#000', border: '#f2f2f8', lw: 2 });
+      SH.text('사격!', SH.W / 2, 162, { color: '#ffd23f', size: 12, bold: true, align: 'center' });
     } else {
       /* menu / list region */
       SH.panel(8, 130, 304, 82, { fill: '#000', border: '#f2f2f8', lw: 2 });

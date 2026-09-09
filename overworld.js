@@ -114,9 +114,19 @@
     if (!this.skipIntro && !SH.Game.seenIntro[this.mapId]) {
       SH.Game.seenIntro[this.mapId] = true;
       this.box = new SH.Textbox(this.def.intro, {
-        onDone: function () { self.box = null; }
+        onDone: function () { self.box = null; self.openingTips(); }
       });
+    } else {
+      this.openingTips();
     }
+  };
+
+  /* The whole overworld tutorial: four lines, once, on the first stage. */
+  Overworld.prototype.openingTips = function () {
+    SH.Tips.show('ow_move', '방향키로 이동한다.  X 를 누르고 있으면 스케이트로 가속.');
+    SH.Tips.show('ow_mission', '좌상단 미션 3개 중 하나만 달성하면 구역 봉쇄가 풀린다.');
+    SH.Tips.show('ow_act', '단말·상자·에메랄드 앞에서 Z 를 누르면 조사한다.');
+    SH.Tips.show('ow_menu', 'C 로 메뉴와 설정. 이동 속도도 여기서 바꿀 수 있다.');
   };
 
   Overworld.prototype.resume = function () {
@@ -253,6 +263,7 @@
     this.walked = 0;
     this.nextEnc = this.def.encounter.rate * SH.rand(0.75, 1.35);
     this.encFlash = 0.45;
+    SH.Tips.show('ow_encounter', '이동 중에는 적과 조우한다.  전투는 턴제다.');
     SH.Audio.sfx('encounter');
     SH.flash('#f2f2f8', 0.25);
     var ids = this.rollGroup();
@@ -329,6 +340,7 @@
     }
 
     if (SH.Input.pressed('confirm')) this.interact();
+    if (this.nearObject()) SH.Tips.show('ow_prompt', 'Z 표시가 뜬 곳은 조사할 수 있다.');
 
     /* camera */
     var cw = SH.W, chh = SH.H;
@@ -356,6 +368,9 @@
     this.map.objects.forEach(function (o) {
       var x = o.x - 8 - cx, y = o.y - 8 - cy;
       if (x < -TS || y < -TS || x > SH.W || y > SH.H) return;
+      if (o.kind !== 'gate' && !(o.used || !o.alive)) {
+        SH.groundShadow(o.x - cx, o.y - cy + 7, 6, 2.2, 0.34);
+      }
       if (o.kind === 'gate') {
         SH.draw('tiles', SH.frameOf('tiles', self.gateOpen ? 'gate_open' : 'gate_locked', 0), x, y);
         if (self.gateOpen) {
@@ -385,11 +400,10 @@
   Overworld.prototype.drawPlayer = function () {
     var p = this.player;
     var x = p.x - Math.floor(this.cam.x), y = p.y - Math.floor(this.cam.y) + 6;
-    /* drop shadow keeps the sprite anchored to the floor */
-    SH.ctx.save();
-    SH.ctx.globalAlpha = 0.4;
-    SH.rect(x - 5, y - 2, 10, 3, '#000');
-    SH.ctx.restore();
+    /* an elliptical drop shadow anchors the sprite to the floor; it
+       tightens up while skating, when he is riding lower and faster */
+    var sq = p.skating ? 1.15 : 1.0;
+    SH.groundShadow(x, y - 1, 7 * sq, 2.6, p.skating ? 0.34 : 0.42);
     /* the compact overworld build - the 40x44 battle sprite is nearly
        three tiles tall and swamps the map */
     var sheet = SH.Game.superForm ? 'shadow_super_ow' : 'shadow_ow';
@@ -405,13 +419,16 @@
 
   Overworld.prototype.drawHUD = function () {
     var G = SH.Game;
-    /* mission panel */
+    /* mission panel - dimmed while a tip is up, since they share the top */
     var w = 196, h = 50;
     SH.ctx.save();
-    SH.ctx.globalAlpha = 0.86;
+    SH.ctx.globalAlpha = SH.Tips.active() ? 0.18 : 0.86;
     SH.rect(4, 4, w, h, '#05050a');
     SH.ctx.restore();
     SH.frameRect(4, 4, w, h, this.gateOpen ? '#7dff9b' : '#4a4a68', 1);
+    if (SH.Tips.active()) { SH.ctx.restore(); return; }
+    SH.ctx.restore();
+    SH.ctx.save();
     SH.text('MISSION - ' + this.def.name, 9, 7, { color: '#ffd23f', size: 9 });
     var M = this.def.mission;
     var rows = [

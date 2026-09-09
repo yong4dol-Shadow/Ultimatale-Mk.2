@@ -83,9 +83,11 @@ def build():
         f += [chars.hedgehog(kind, 'skate', i / 4.0) for i in range(4)]
         f += [chars.hedgehog(kind, 'attack', 0.0), chars.hedgehog(kind, 'attack', 0.5)]
         f += [chars.hedgehog(kind, 'hurt', 0.0)]
+        f += [chars.hedgehog(kind, 'shoot', 0.0), chars.hedgehog(kind, 'shoot', 0.6)]
         return f
 
-    hog_names = {'idle': [0, 1], 'walk': [2, 3, 4, 5], 'attack': [6, 7], 'hurt': [8]}
+    hog_names = {'idle': [0, 1], 'walk': [2, 3, 4, 5], 'attack': [6, 7], 'hurt': [8],
+                 'shoot': [9], 'aim': [10]}
     emit('shadow', hog_frames('shadow'), chars.SHADOW_PAL, frame_names=hog_names)
     emit('shadow_super', hog_frames('shadow'), chars.SUPER_PAL, frame_names=hog_names)
     emit('sonic', hog_frames('sonic'), chars.SONIC_PAL, frame_names=hog_names)
@@ -98,21 +100,20 @@ def build():
             f += [chars.hedgehog_small(kind, 'idle', 0.0, facing),
                   chars.hedgehog_small(kind, 'idle', 0.5, facing)]
             f += [chars.hedgehog_small(kind, 'walk', i / 4.0, facing) for i in range(4)]
-            f += [chars.hedgehog_small(kind, 'skate', 0.0, facing),
-                  chars.hedgehog_small(kind, 'skate', 0.5, facing)]
+            f += [chars.hedgehog_small(kind, 'skate', i / 4.0, facing) for i in range(4)]
         return f
 
-    # eight frames per facing: idle x2, walk x4, skate x2
+    # ten frames per facing: idle x2, walk x4, skate x4
     ow_names = {}
     for fi, pre in enumerate(('', 'down_', 'up_')):
-        b = fi * 8
+        b = fi * 10
         ow_names[pre + 'idle'] = [b, b + 1]
         ow_names[pre + 'walk'] = [b + 2, b + 3, b + 4, b + 5]
-        ow_names[pre + 'skate'] = [b + 6, b + 7]
+        ow_names[pre + 'skate'] = [b + 6, b + 7, b + 8, b + 9]
     ow_names['attack'] = [0]
     ow_names['hurt'] = [1]
-    emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, cols=8, frame_names=ow_names)
-    emit('shadow_super_ow', ow_frames('shadow'), chars.SUPER_PAL, cols=8, frame_names=ow_names)
+    emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, cols=10, frame_names=ow_names)
+    emit('shadow_super_ow', ow_frames('shadow'), chars.SUPER_PAL, cols=10, frame_names=ow_names)
 
     # ---- G.U.N. --------------------------------------------------------
     gun = [E.gun_soldier(0.0), E.gun_soldier(0.5)]
