@@ -252,16 +252,32 @@ MUZZLE_S = [
 def _jet(cv, x, y, phase=0.0, back=-1, size=1.0):
     """The Air Shoes' exhaust plume.
 
-    Anchored to the back of the skater and pulsing on the cycle, not
-    pinned to each moving foot - stuck to the boots it read as two little
-    fires chasing the feet around instead of thrust coming off the skates.
+    Shaped from the source art: the flame is widest at the vent, sweeps
+    back and LIFTS off the floor, and is layered orange -> gold -> white
+    core.  Two earlier versions were wrong in different ways - one fire
+    pinned to each foot read as burning shoes chasing the feet, and a
+    straight dark-red taper read as a red stick trailing the boot.  Drawing
+    it as blobs along a rising arc, with no red in it at all, is what makes
+    it read as thrust.
     """
-    puff = 1.0 + 0.35 * math.sin(phase * math.pi * 2)
-    L = 7.0 * size * puff
-    cv.taper_line(x, y, x + back * L, y - 0.6, 2.3 * size, 0.6, 'r')
-    cv.taper_line(x, y, x + back * L * 0.72, y - 0.4, 1.6 * size, 0.5, 'o')
-    cv.taper_line(x, y, x + back * L * 0.42, y - 0.2, 1.0 * size, 0.5, 'O2')
-    cv.px(x + back * 1.0, y - 0.2, 'W')
+    puff = 0.85 + 0.30 * math.sin(phase * math.pi * 2)
+
+    def plume(length, r0, rise, col):
+        n = 8
+        for i in range(n):
+            k = i / (n - 1.0)
+            r = r0 * (1.0 - 0.70 * k)
+            # the rise is quadratic, so the base hugs the floor behind the
+            # heel and only the tail end curls upward
+            cv.ellipse(x + back * length * k, y - rise * k * k, r * 1.2, r, col)
+
+    plume(6.4 * size, 3.2 * size, 2.8 * size, 'o')                  # envelope
+    plume(4.5 * size * puff, 2.2 * size, 1.9 * size, 'O2')          # gold body
+    plume(2.0 * size * puff, 1.3 * size, 0.7 * size, 'S')           # white core
+    # a tongue licking off the tip, so the edge is not one smooth blob
+    tx, ty = x + back * 6.4 * size, y - 2.8 * size
+    cv.taper_line(tx, ty, tx + back * 1.6 * size * puff, ty - 1.8 * size * puff,
+                  1.5 * size, 0.5, 'o')
 
 
 def _glide_trail(cv, x, y, phase=0.0, width=9):

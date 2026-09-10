@@ -220,37 +220,82 @@ def black_oak(t=0.0, pose='idle'):
     return _finish(cv)
 
 
+def _doom_horn(cv, x, y, side, length, curl, w0=2.6, col='A'):
+    """One horn, as a chain of shrinking segments whose heading rotates.
+
+    A straight taper reads as an insect antenna.  Black Doom's crown is a
+    ram-like crescent - it leaves the temple pointing up and ends pointing
+    out and back - and it is the first thing that identifies him.
+    """
+    a = math.radians(-90 + side * 12)
+    px, py, w = x, y, w0
+    n = 7
+    for i in range(n):
+        step = length / n
+        nx, ny = px + math.cos(a) * step, py + math.sin(a) * step
+        cv.taper_line(px, py, nx, ny, w, w * 0.84, col)
+        px, py, w = nx, ny, w * 0.84
+        a += math.radians(side * curl)
+
+
 def black_doom(t=0.0, pose='idle'):
-    """Black Doom - floating, robed, three eyes, crown of horns."""
+    """Black Doom - hovering, cloaked, three red eyes under a crown of horns."""
     cv = Canvas(56, 64)
     ang = t * math.pi * 2
-    y = 4 + math.sin(ang) * 2.0
-    # robe
-    cv.poly([(28, 18 + y), (46, 40 + y), (38, 55 + y), (18, 55 + y), (10, 40 + y)], 'F')
-    cv.poly([(28, 24 + y), (40, 41 + y), (34, 52 + y), (22, 52 + y), (16, 41 + y)], 'f')
-    for i in range(3):                                   # cloak folds
-        cv.line(24 + i * 4, 30 + y + i, 22 + i * 4, 53 + y, 'H')
-    cv.poly([(28, 22 + y), (37, 33 + y), (28, 30 + y), (19, 33 + y)], 'A')   # collar
-    for i in range(4):                                     # tattered hem
-        cv.poly([(18 + i * 6, 53 + y), (21 + i * 6, 57 + y), (24 + i * 6, 53 + y)], 'F')
-    # head
-    cv.ellipse(28, 16 + y, 10.0, 9.0, 'F')
-    cv.ellipse(28, 19 + y, 7.5, 6.0, 'f')
-    # crown of horns
-    for dx, dy, l in ((-9, -4, -13), (-5, -8, -16), (4, -8, -15), (9, -3, -12)):
-        cv.taper_line(28 + dx, 16 + y + dy, 28 + dx * 2.0, 16 + y + l, 2.6, 0.7, 'A')
-    # three eyes
-    cv.ellipse(23, 15 + y, 2.6, 2.0, 'V')
-    cv.ellipse(33, 15 + y, 2.6, 2.0, 'V')
-    cv.ellipse(28, 20 + y, 3.2, 2.4, 'V')
-    for ex, ey in ((23, 15), (33, 15), (28, 20)):
-        cv.px(28 + (ex - 28) * 0.7, ey + y, 'O')
-    # skeletal arms
-    cv.taper_line(14, 30 + y, 4, 40 + y, 2.4, 1.2, 'A')
-    cv.taper_line(42, 30 + y, 50, 38 + y, 2.4, 1.2, 'A')
+    y = 3 + math.sin(ang) * 1.5            # he never touches the ground
+    cx = 28.0
+    hy = 19 + y
+
+    # --- cloak ------------------------------------------------------------
+    # a narrow column, not the fat pentagon this used to be: he is tall and
+    # hunched, and a wide body read as a beetle shell.
+    cv.poly([(cx - 8, 31 + y), (cx + 8, 31 + y), (cx + 13, 50 + y),
+             (cx + 11, 55 + y), (cx - 11, 55 + y), (cx - 13, 50 + y)], 'F')
+    for i in range(5):                                      # tattered hem
+        x0 = cx - 11 + i * 5.5
+        cv.poly([(x0, 51 + y), (x0 + 2.75, 58 + y - (i % 2) * 3.0),
+                 (x0 + 5.5, 51 + y)], 'F')
+    cv.poly([(cx - 6, 31 + y), (cx + 6, 31 + y), (cx + 9, 51 + y),
+             (cx - 9, 51 + y)], 'f')                        # the robe's shadow
+    for i in range(3):                                      # folds either side
+        cv.line(cx - 6 - i * 2.5, 35 + y + i * 2, cx - 9 - i * 2.5, 52 + y, 'H')
+        cv.line(cx + 6 + i * 2.5, 35 + y + i * 2, cx + 9 + i * 2.5, 52 + y, 'H')
+    # the collar rises into two points behind the head
+    cv.poly([(cx - 8, 32 + y), (cx - 10, 23 + y), (cx - 3, 30 + y)], 'F')
+    cv.poly([(cx + 8, 32 + y), (cx + 10, 23 + y), (cx + 3, 30 + y)], 'F')
+    # crimson: a narrow strip down the chest under a small throat lozenge
+    cv.poly([(cx - 1.3, 34 + y), (cx + 1.3, 34 + y), (cx + 2.2, 49 + y),
+             (cx - 2.2, 49 + y)], 'v')
+    cv.poly([(cx, 30 + y), (cx + 2.4, 33.5 + y), (cx, 37 + y),
+             (cx - 2.4, 33.5 + y)], 'V')
+
+    # --- arms: sleeves at his sides, a claw just showing at each cuff ------
+    for side in (-1, 1):
+        sx = cx + side * 7.5
+        wx, wy = sx + side * 3.4, 44 + y
+        cv.taper_line(sx, 33 + y, wx, wy, 4.6, 3.0, 'f')
+        for f in (-1, 0, 1):                                # three short claws
+            cv.taper_line(wx + f * 1.2, wy + 1.4, wx + f * 1.9, wy + 5.0,
+                          1.0, 0.35, 'a')
+
+    # --- head ---------------------------------------------------------------
+    cv.ellipse(cx, hy, 8.0, 8.8, 'f')                       # dark skull
+    cv.ellipse(cx, hy - 2.6, 7.2, 5.2, 'F')                 # lit crown
+    _doom_horn(cv, cx - 7.0, hy - 4.8, -1, 20.0, 10.0, 2.6)
+    _doom_horn(cv, cx + 7.0, hy - 4.8, 1, 20.0, 10.0, 2.6)
+    _doom_horn(cv, cx - 2.8, hy - 6.6, -1, 12.0, 8.0, 1.8)
+    _doom_horn(cv, cx + 2.8, hy - 6.6, 1, 12.0, 8.0, 1.8)
+
+    # three eyes in a downward triangle - the arrangement is the whole face
+    for ex, ey, rx, ry in ((-4.2, -0.4, 2.6, 1.9), (4.2, -0.4, 2.6, 1.9),
+                           (0.0, 4.4, 2.4, 1.8)):
+        cv.ellipse(cx + ex, hy + ey, rx + 0.9, ry + 0.9, 'O')   # socket
+        cv.ellipse(cx + ex, hy + ey, rx, ry, 'V')
+        cv.px(cx + ex - rx * 0.5, hy + ey - ry * 0.45, 'W')
+
     if pose == 'attack':
-        cv.circle(50, 38 + y, 3.2, 'J')
-        cv.circle(6, 39 + y, 2.8, 'J')
+        cv.circle(cx - 16, 48 + y, 3.4, 'J')
+        cv.circle(cx + 16, 48 + y, 3.4, 'J')
     return _finish(cv)
 
 
@@ -274,14 +319,17 @@ def devil_doom(t=0.0, pose='idle'):
     # head
     hy = cy - 20
     cv.ellipse(48, hy, 14.0, 11.0, 'F')
-    for dx, l in ((-12, -18), (-6, -22), (6, -22), (12, -18)):
-        cv.taper_line(48 + dx, hy - 4, 48 + dx * 1.9, hy + l, 3.4, 0.8, 'A')
-    cv.ellipse(41, hy - 1, 3.4, 2.6, 'V')
-    cv.ellipse(55, hy - 1, 3.4, 2.6, 'V')
-    cv.ellipse(48, hy + 5, 4.6, 3.4, 'V')                  # the great third eye
-    cv.px(41, hy - 1, 'O')
-    cv.px(55, hy - 1, 'O')
-    cv.circle(48, hy + 5, 1.4, 'O')
+    # the same crescent crown he wears in his first form, scaled up, so the
+    # transformation still reads as the same character
+    _doom_horn(cv, 48 - 11, hy - 4, -1, 21.0, 11.0, 3.4)
+    _doom_horn(cv, 48 + 11, hy - 4, 1, 21.0, 11.0, 3.4)
+    _doom_horn(cv, 48 - 4.5, hy - 7, -1, 14.0, 9.0, 2.4)
+    _doom_horn(cv, 48 + 4.5, hy - 7, 1, 14.0, 9.0, 2.4)
+    for ex, ey, rx, ry in ((-7, -1, 3.4, 2.6), (7, -1, 3.4, 2.6),
+                           (0, 5, 4.6, 3.4)):                # the great third eye
+        cv.ellipse(48 + ex, hy + ey, rx + 1.0, ry + 1.0, 'O')
+        cv.ellipse(48 + ex, hy + ey, rx, ry, 'V')
+        cv.px(48 + ex - rx * 0.5, hy + ey - ry * 0.45, 'W')
     # arms
     cv.taper_line(32, cy + 2, 16, cy + 22, 4.4, 2.0, 'F')
     cv.taper_line(64, cy + 2, 80, cy + 20, 4.4, 2.0, 'F')
@@ -307,35 +355,61 @@ HUMAN_EYE = [
 
 
 def maria(t=0.0, pose='idle'):
+    """Maria Robotnik - blonde bob under a blue band, pale blue dress.
+
+    She is a small girl in a memory, not a fighter: the read has to come from
+    the hair shape and the dress, because at 40x44 the face is eight pixels
+    across.
+    """
     cv = Canvas(40, 44)
     ang = t * math.pi * 2
     bob = math.sin(ang) * 0.7
-
-    # --- long hair behind everything ---------------------------------
-    cv.poly([(13, 8), (28, 7), (30, 24), (26, 30), (14, 30), (11, 22)], 'A')
-
-    # --- body ---------------------------------------------------------
-    cv.poly([(15, 27 + bob), (26, 27 + bob), (30, 41), (11, 41)], 'F')   # skirt
-    for i in range(4):                                                    # pleats
-        cv.line(15 + i * 4, 30, 14 + i * 5, 41, 'f')
-    cv.rect(13, 40, 6, 3, 'K')
-    cv.rect(22, 40, 6, 3, 'K')
-    cv.taper_line(16, 24, 12, 33, 2.0, 1.6, 'M')                          # arms
-    cv.taper_line(25, 24, 29, 33, 2.0, 1.6, 'M')
-    cv.poly([(16, 20 + bob), (26, 20 + bob), (27, 28), (15, 28)], 'V')    # blouse
-    cv.line(21, 21 + bob, 21, 27, 'v')
-
-    # --- head ----------------------------------------------------------
+    cx = 20.0
     hy = 13 + bob
-    cv.ellipse(21.5, hy, 6.2, 6.8, 'M')                                   # face
-    cv.ellipse(27, hy + 1.5, 1.6, 1.4, 'M')                               # nose bridge
-    cv.poly([(14, hy - 8), (29, hy - 9), (29, hy - 4), (22, hy - 2),
-             (15, hy - 4)], 'A')                                          # bangs
-    cv.line(15, hy - 6, 28, hy - 7, 'a')
-    cv.stamp(HUMAN_EYE, 21, hy - 1, {'I': 'E'})
-    cv.px(27, hy + 2, 'm')                                                # nose tip
-    cv.line(24, hy + 4, 26, hy + 4, 'm')                                  # mouth
-    cv.px(18, hy + 3, 'R')                                                # blush
-    cv.px(17, hy + 3, 'R')
-    cv.line(16, hy - 8, 24, hy - 9, 'V')                                  # hair band
+
+    # --- dress --------------------------------------------------------------
+    cv.poly([(cx - 5, 25 + bob), (cx + 5, 25 + bob), (cx + 10, 40),
+             (cx - 10, 40)], 'F')                            # skirt
+    for i in range(3):                                       # pleat shadows
+        cv.line(cx - 4 + i * 4, 29, cx - 6 + i * 6, 39, 'f')
+    cv.poly([(cx - 4.5, 20 + bob), (cx + 4.5, 20 + bob), (cx + 5.5, 27),
+             (cx - 5.5, 27)], 'V')                           # pale blue bodice
+    cv.rect(cx - 6, 25 + bob * 0.5, 12, 2, 'W')              # white sash
+    # sailor collar
+    cv.poly([(cx - 4.5, 20 + bob), (cx, 24 + bob), (cx + 4.5, 20 + bob),
+             (cx + 3, 19 + bob), (cx - 3, 19 + bob)], 'W')
+    cv.px(cx, 23 + bob, 'R')                                 # neck ribbon
+    cv.px(cx - 1, 23 + bob, 'R')
+    cv.px(cx + 1, 23 + bob, 'R')
+    for side in (-1, 1):                                     # arms
+        cv.taper_line(cx + side * 4.5, 21 + bob, cx + side * 7.5, 30,
+                      2.2, 1.7, 'V')                         # sleeve
+        cv.taper_line(cx + side * 7.5, 30, cx + side * 8.5, 34, 1.7, 1.5, 'M')
+    cv.rect(cx - 7, 39, 6, 3, 'f')                           # shoes
+    cv.rect(cx + 1, 39, 6, 3, 'f')
+
+    # --- head ---------------------------------------------------------------
+    # hair mass first, then the face ON TOP of it, then a shallow fringe: the
+    # old order buried the eyes under the bangs and left a flat-top helmet
+    cv.ellipse(cx, hy - 1.2, 7.2, 7.4, 'A')
+    for side in (-1, 1):                                     # side locks
+        cv.poly([(cx + side * 7.2, hy - 2), (cx + side * 6.6, hy + 6),
+                 (cx + side * 4.2, hy + 8), (cx + side * 3.0, hy + 1)], 'A')
+        cv.poly([(cx + side * 6.6, hy + 4), (cx + side * 9.0, hy + 9),
+                 (cx + side * 4.6, hy + 7.6)], 'A')          # outward flick
+    cv.ellipse(cx, hy - 4.0, 6.8, 5.4, 'V')                  # blue band...
+    cv.ellipse(cx, hy - 3.0, 6.5, 5.2, 'A')                  # ...as a crescent
+    cv.ellipse(cx, hy + 0.8, 5.8, 6.2, 'M')                  # face
+    cv.ellipse(cx, hy - 4.0, 6.4, 2.4, 'A')                  # fringe
+    cv.poly([(cx - 1.2, hy - 3.0), (cx + 1.0, hy - 5.0), (cx + 2.6, hy - 2.0)], 'A')
+
+    for ex in (-2.6, 2.6):                                   # eyes
+        cv.ellipse(cx + ex, hy + 0.9, 1.4, 1.8, 'O')
+        cv.ellipse(cx + ex, hy + 1.1, 1.0, 1.4, 'S')
+        cv.ellipse(cx + ex, hy + 1.4, 0.8, 1.1, 'E')
+        cv.px(cx + ex - 0.7, hy + 0.3, 'W')                  # glint
+    cv.px(cx, hy + 3.3, 'm')                                 # nose
+    cv.line(cx - 1, hy + 4.6, cx + 1, hy + 4.6, 'm')         # mouth
+    cv.px(cx - 4.0, hy + 2.9, 'R')                           # blush
+    cv.px(cx + 4.0, hy + 2.9, 'R')
     return _finish(cv, extra=(('E', 'e'),))
