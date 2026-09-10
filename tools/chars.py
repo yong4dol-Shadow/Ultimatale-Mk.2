@@ -280,14 +280,6 @@ def _jet(cv, x, y, phase=0.0, back=-1, size=1.0):
                   1.5 * size, 0.5, 'o')
 
 
-def _glide_trail(cv, x, y, phase=0.0, width=9):
-    """Ground-level speed streaks left behind the shoes."""
-    for i in range(3):
-        off = (i * 3 + phase * 3) % 9
-        ln = width - i * 2
-        cv.line(x - off, y + i, x - off - ln, y + i, 'c' if i == 1 else 'w')
-
-
 def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
                length=6.5, stride=4.0, glide=False):
     swing = math.sin(phase)
@@ -360,8 +352,13 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
     if pose == 'walk':
         leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi)
     elif pose == 'skate':
-        # the feet alternate push and glide, but neither leaves the ground
-        leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi) * 0.55
+        # The feet alternate push and glide and neither leaves the ground, so
+        # the only thing separating the frames is how far apart they are.
+        # Half-cycle opposition puts both feet at the zero crossing at once,
+        # which made frames 0 and 2 identical - quarter-cycle keeps one foot
+        # forward and one back at every step of the cycle.
+        leg_a, leg_b = ang + math.pi / 2, ang - math.pi / 2
+        arm = math.sin(ang + math.pi) * 0.55
     else:
         leg_a, leg_b, arm = 0.5, -0.5, 0.35
 
@@ -379,7 +376,6 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
     cv.taper_line(tx - 3, hip - 2, tx - 6, hip - 4, 1.4, 0.5, 'F')
 
     if pose == 'skate':
-        _glide_trail(cv, 14, 26, t_phase, 7)
         _jet(cv, 14.5, 25.5, t_phase, -1, 1.0)
     _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False, pose == 'skate')
 
@@ -403,7 +399,7 @@ def _ow_front(cv, kind, pose, ang, striped, back, t_phase=0.0):
     if pose == 'walk':
         leg_a, leg_b = ang, ang + math.pi
     elif pose == 'skate':
-        leg_a, leg_b = ang, ang + math.pi
+        leg_a, leg_b = ang + math.pi / 2, ang - math.pi / 2
     else:
         leg_a, leg_b = 0.4, -0.4
 
@@ -424,8 +420,6 @@ def _ow_front(cv, kind, pose, ang, striped, back, t_phase=0.0):
     _quill(cv, hx, hy - 3.8, 270, 3.0, 1.9, 0.8)
 
     if pose == 'skate':
-        _glide_trail(cv, hx - 4, 26, t_phase, 5)
-        _glide_trail(cv, hx + 9, 26, t_phase + 0.5, 5)
         _jet(cv, hx - 4.5, 26.5, t_phase, -1, 0.6)
         _jet(cv, hx + 4.5, 26.5, t_phase + 0.5, 1, 0.6)
     _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True, pose == 'skate')
@@ -537,9 +531,7 @@ def hedgehog(kind='shadow', pose='idle', t=0.0, bob=0.0):
 
     # --- back-to-front ---------------------------------------------------
     if pose == 'skate':
-        # thrust first, so the boots and the trail draw over it
-        _glide_trail(cv, torso_x - 1, hip_y + 8.6, t, 6)
-        _jet(cv, torso_x - 7.0, hip_y + 7.4, t, -1, 0.95)
+        _jet(cv, torso_x - 7.0, hip_y + 7.4, t, -1, 0.95)   # thrust, behind
     quills(cv, hx, hy, flap=math.sin(ang) * 1.2)
     if kind == 'tails':
         _twin_tails(cv, torso_x - 5, hip_y - 2, ang)

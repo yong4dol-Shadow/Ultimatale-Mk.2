@@ -270,10 +270,23 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     saved.lastSave !== '' && saved.hp > 5 && saved.stored);
 
   /* ---- encounters are paced for the faster player -------------------- */
-  const rates = await page.evaluate(() =>
-    SH.MAP_ORDER.map(id => SH.Maps[id].encounter.rate));
-  check('encounter distance is at least 700px everywhere',
-    rates.every(r => r >= 700));
+  const enc = await page.evaluate(() => {
+    const rates = SH.MAP_ORDER.map(id => SH.Maps[id].encounter.rate);
+    const o = SH.scenes[0];
+    const rolls = [];
+    for (let i = 0; i < 400; i++) rolls.push(o.rollEncDistance());
+    const r = o.def.encounter.rate;
+    return {
+      rates: rates,
+      lo: Math.min.apply(null, rolls) / r,
+      hi: Math.max.apply(null, rolls) / r,
+      mean: rolls.reduce((a, b) => a + b, 0) / rolls.length / r
+    };
+  });
+  check('encounter distance is at least 1500px everywhere',
+    enc.rates.every(r => r >= 1500));
+  check('the encounter roll spans a wide band, so it never feels metronomic',
+    enc.lo < 1.0 && enc.hi > 2.6 && enc.mean > 1.6 && enc.mean < 2.4);
 
   /* ---- pause menu, including the settings tab ----------------------- */
   await page.evaluate(() => SH.push(SH.makePauseMenu(SH.scenes[0])));

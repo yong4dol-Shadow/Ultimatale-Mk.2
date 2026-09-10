@@ -27,8 +27,8 @@
       anim: 0, moving: false, skating: false
     };
     this.walked = 0;
-    this.nextEnc = this.def.encounter.rate * SH.rand(0.6, 1.1);
-    this.grace = 200;                 // safe distance right after a battle
+    this.nextEnc = this.rollEncDistance();
+    this.grace = 500;                 // safe distance on entering a map
     this.box = null;
     this.titleT = 2.2;
     this.gateOpen = false;
@@ -132,9 +132,20 @@
   Overworld.prototype.resume = function () {
     SH.Audio.play(this.def.bgm);
     this.walked = 0;
-    this.grace = 280;
-    this.nextEnc = this.def.encounter.rate * SH.rand(0.7, 1.2);
+    this.grace = 700;      // no ambush the moment a fight ends
+    this.nextEnc = this.rollEncDistance();
     this.refreshGate();
+  };
+
+  /* ---------------- encounter pacing ---------------------------------
+     UNDERTALE re-rolls a step counter after every fight, over a wide band:
+     a couple of quick ones and then a long quiet stretch is the point.  A
+     narrow band made these maps feel metronomic - you could count to the
+     next fight.  `rate` is the mean distance; the roll spans 0.8x to 3.2x
+     of it, so at walking pace the gap runs from roughly eight seconds to
+     over half a minute. */
+  Overworld.prototype.rollEncDistance = function () {
+    return this.def.encounter.rate * (0.8 + Math.random() * 2.4);
   };
 
   /* ---------------- collision --------------------------------------- */
@@ -279,7 +290,7 @@
   Overworld.prototype.triggerEncounter = function () {
     var self = this;
     this.walked = 0;
-    this.nextEnc = this.def.encounter.rate * SH.rand(0.75, 1.35);
+    this.nextEnc = this.rollEncDistance();
     this.encFlash = 0.45;
     SH.Tips.show('ow_encounter', '이동 중에는 적과 조우한다.  전투는 턴제다.');
     SH.Audio.sfx('encounter');
@@ -349,7 +360,9 @@
       this.tryMove(ax.x * speed, 0);
       this.tryMove(0, ax.y * speed);
       p.anim += dt * (dash ? 13 : 9);
-      var dist = speed * (Math.abs(ax.x) + Math.abs(ax.y));
+      /* divided by the speed setting so 매우 빠름 covers more map per
+         encounter instead of running into more of them */
+      var dist = speed * Math.hypot(ax.x, ax.y) / SH.Settings.speedMul();
       if (this.grace > 0) this.grace -= dist;
       else {
         this.walked += dist;
