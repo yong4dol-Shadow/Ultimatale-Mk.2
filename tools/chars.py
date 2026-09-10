@@ -240,17 +240,21 @@ OW_GROUND = 29
 # Bigger than it looks like it should be: on an eleven-pixel head a four-row
 # eye is a dot, and next to any muzzle at all the face reads as all snout.
 #
-# The glare comes from the RED BROW, not from the eye outline.  In the
-# reference it is a heavy band slanting down over the front of the eye, and
-# with it in place the same eye reads sharp; without it, no amount of
-# cutting corners off the lids stops the face looking mild.  `R` maps to
-# plain fur for the characters who do not have the streak.
+# The glare comes from the RED BROW, not from the eye outline: a heavy band
+# slanting down over the eye, with `R` mapped to plain fur for the
+# characters who do not have the streak.
+#
+# WHICH WAY it slants is the whole thing.  The head faces right, so the
+# front is the right-hand column, and a sharp eye has the lid coming DOWN
+# toward the front - tall and round at the back, pinched at the front.
+# Sloping it the other way (open at the front, brow rising) is the same
+# band of red and reads as wide-eyed and mild, which is the opposite.
 EYE_S = [
-    '..RRRR.',
-    '.RRRSII',
-    'ROOSSIe',
-    'OOSSIIO',
-    '.OOOOO.',
+    '.RRRRRR',
+    'OSSIIRR',
+    'OSSIIeO',
+    '.OSIIeO',
+    '..OOOO.',
 ]
 
 # Laid out the way the reference sprite lays a head out: the muzzle sits
@@ -438,7 +442,7 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
     cv.stamp(MUZZLE_S, hx + 0.4, hy + 0.2)
-    cv.stamp(EYE_S, hx - 2.8, hy - 5.4,
+    cv.stamp(EYE_S, hx - 2.6, hy - 4.6,
              {'I': 'E', 'R': 'R' if striped else 'F'})
 
 
