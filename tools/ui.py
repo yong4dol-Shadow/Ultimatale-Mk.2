@@ -28,6 +28,27 @@ def soul_red():
     return _heart('q', 'Q')
 
 
+def soul_halo():
+    """The graze outline DELTARUNE puts around the soul.
+
+    A ring hugging the heart itself - a plain circle would read as a bubble,
+    and the point is that the *soul* lit up.  It needs its own 20x20 sheet:
+    the heart already fills its 16x16 cell edge to edge, so there is nowhere
+    inside that cell to put a ring."""
+    src = Canvas(20, 20)
+    src.blit(_heart('q', 'Q'), 2, 2)
+    cv = Canvas(20, 20)
+    for y in range(20):
+        for x in range(20):
+            if src.get(x, y) != '.':
+                continue
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if src.get(x + dx, y + dy) not in ('.', None):
+                        cv.px(x, y, 'h')
+    return cv
+
+
 def soul_green():
     return _heart('j', 'J')
 
@@ -242,10 +263,31 @@ def boom(i):
     return cv
 
 
-def graze(i):
+def impact(i):
+    """A bullet strike: a spark flash and a puff, gone in three frames.
+
+    The slash streak reads as a sword cut - wrong for a pistol round, and it
+    is the one effect that looked stretched out at 320x240."""
     cv = Canvas(16, 16)
-    r = 2 + i * 2.2
-    for k in range(6):
-        a = k * 1.05
-        cv.px(8 + math.cos(a) * r, 8 + math.sin(a) * r, 'c')
+    if i == 0:
+        cv.circle(8, 8, 2.2, '8')
+        for k in range(6):                      # the first flash throws sparks
+            a = k * 1.047
+            cv.line(8 + math.cos(a) * 2.4, 8 + math.sin(a) * 2.4,
+                    8 + math.cos(a) * 5.2, 8 + math.sin(a) * 5.2, 'y')
+    elif i == 1:
+        cv.circle(8, 8, 3.4, 'o')
+        cv.circle(8, 8, 1.8, 'y')
+        for k in range(5):
+            a = k * 1.257 + 0.4
+            cv.px(8 + math.cos(a) * 6.0, 8 + math.sin(a) * 6.0, 'r')
+    else:
+        cv.circle(8, 8, 3.0, 'r')
+        cv.circle(8, 8, 1.4, 'o')
+        for k in range(4):
+            a = k * 1.571 + 0.8
+            cv.px(8 + math.cos(a) * 6.6, 8 + math.sin(a) * 6.6, 'o')
+    cv.outline('0')
     return cv
+
+

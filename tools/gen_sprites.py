@@ -188,8 +188,6 @@ def build():
     add('icon_act', U.icon_act())
     add('icon_item', U.icon_item())
     add('icon_mercy', U.icon_mercy())
-    for i in range(3):
-        add('graze%d' % i, U.graze(i))
     emit('hud', hud, U.UI_PAL, cols=8, frame_names=hud_names, edge_check=False)
 
     # ---- large map props ------------------------------------------------
@@ -208,6 +206,8 @@ def build():
     # ---- effects --------------------------------------------------------
     emit('fx_slash', [U.slash(i) for i in range(3)], U.UI_PAL, edge_check=False)
     emit('fx_boom', [U.boom(i) for i in range(4)], U.UI_PAL, edge_check=False)
+    emit('fx_hit', [U.impact(i) for i in range(3)], U.UI_PAL, edge_check=False)
+    emit('fx_soulring', [U.soul_halo()], U.UI_PAL, edge_check=False)
 
     # ---- write the JS payload -------------------------------------------
     parts = []

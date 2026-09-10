@@ -260,6 +260,8 @@
     this.chaosFrozen = 0;
     this.chaosPending = 0;
     this.tpFlash = 0;
+    this.grazeGlow = 0;
+    this.grazeHold = 0;
     this.tracer = null;
     this.pendingShot = null;
     this.pops = [];
@@ -397,12 +399,27 @@
   };
 
   /* ---------- damage ---------------------------------------------------- */
-  Battle.prototype.hitEnemy = function (e, dmg) {
+  /* Roughly the middle of an enemy's sprite - flyers sit `hover` pixels off
+     the floor, so hits used to land under the beetles instead of on them. */
+  Battle.prototype.bodyY = function (e) {
+    var sh = SH.Assets.sheet(e.sheet);
+    return GROUND - e.hover - (sh ? sh.fh : 44) * 0.5;
+  };
+
+  /* `kind` picks the impact art: 'shot' is a pistol round landing, anything
+     else is the energy hit the Chaos moves deal. */
+  Battle.prototype.hitEnemy = function (e, dmg, kind) {
     e.hp -= dmg;
     e.flash = 0.35;
     e.shakeT = 0.3;
-    this.addFx('fx_slash', e.x, e.y - 22, 3, 0.24);
-    SH.shake(4, 0.18);
+    var by = this.bodyY(e);
+    if (kind === 'shot') {
+      this.addFx('fx_hit', e.x + SH.rand(-4, 4), by + SH.rand(-5, 5), 3, 0.18);
+      SH.shake(3, 0.12);
+    } else {
+      this.addFx('fx_slash', e.x, by, 3, 0.24);
+      SH.shake(4, 0.18);
+    }
     if (e.hp <= 0) {
       e.hp = 0;
       e.alive = false;
@@ -410,7 +427,7 @@
       this.kills.push(e.id);
       SH.Story.recordKill(e.def.faction);
       SH.Audio.sfx('kill');
-      this.addFx('fx_boom', e.x, e.y - 22, 4, 0.4);
+      this.addFx('fx_boom', e.x, by, 4, 0.4);
     } else {
       SH.Audio.sfx('hit');
     }
@@ -503,10 +520,13 @@
       var hit = ddx < b.w / 2 + 3 && ddy < b.h / 2 + 3;
       if (near && !hit) {
         this.gainTp(22 * dt, this.soul);
+        /* DELTARUNE marks a graze by lighting the soul's own outline, so the
+           reading happens where the player's eyes already are. */
+        this.grazeGlow = Math.min(1, this.grazeGlow + dt * 9);
+        this.grazeHold = 0.16;
         if (!b.grazed) {
           b.grazed = true;
           SH.Audio.sfx('graze');
-          this.addFx('hud', b.x, b.y, 1, 0.2);
           SH.Tips.show('bt_graze', 'TP 는 0에서 시작한다.  탄에 스치거나 명중시키면 차오른다.');
         }
       }
@@ -617,7 +637,7 @@
       }
       var mult = { PERFECT: 2.2, GREAT: 1.6, GOOD: 1.15 }[grade];
       var dmg = Math.max(1, Math.round((G.atk + SH.rand(-2, 2)) * mult - e.def_));
-      self.hitEnemy(e, dmg);
+      self.hitEnemy(e, dmg, 'shot');
       self.gainTp(8, { x: e.x, y: GROUND - 40 });
       var lines = [{ text: grade + '!  ' + e.name + ' 에게 ' + dmg + ' 데미지.' }];
       if (!e.alive) lines.push({ text: e.def.onKill });
@@ -635,8 +655,8 @@
     if (!G) return;
     var before = G.tp;
     G.tp = Math.min(G.maxtp, G.tp + n);
-    if (showAt) {
-      /* accumulate the trickle and pop a readable number, not +0.4 a frame */
+    if (showAt && showAt !== this.soul) {
+      /* off-soul gains (a landed shot, a spared enemy) still pop a number */
       this.tpDrip = (this.tpDrip || 0) + (G.tp - before);
       if (this.tpDrip >= 1) {
         var whole = Math.floor(this.tpDrip);
@@ -812,6 +832,10 @@
     if (this.state === 'enemyturn' && this.chaosFrozen > 0) this.chaosFrozen -= dt;
     if (this.soul.iframe > 0) this.soul.iframe -= dt;
     if (this.tpFlash > 0) this.tpFlash -= dt;
+    /* the graze outline fades out over a few frames so a stream of near
+       misses reads as one steady glow instead of a strobe */
+    if (this.grazeHold > 0) this.grazeHold -= dt;
+    else if (this.grazeGlow > 0) this.grazeGlow = Math.max(0, this.grazeGlow - dt * 4);
     if (this.dmgPop) { this.dmgPop.t -= dt; if (this.dmgPop.t <= 0) this.dmgPop = null; }
     this.enemies.forEach(function (e) {
       if (e.flash > 0) e.flash -= dt;
@@ -880,7 +904,7 @@
           this.addBurst({ x: 62, y: GROUND - 30, kind: 'spark', n: 22, r1: 150,
                           dur: 0.6, col: '#ff8a1f' });
           this.living().forEach(function (e) {
-            self.addFx('fx_boom', e.x, GROUND - 26, 4, 0.5);
+            self.addFx('fx_boom', e.x, self.bodyY(e), 4, 0.5);
           });
         }
         if (this.fxTimer <= 0) {
@@ -1137,10 +1161,8 @@
       /* a pistol round, not a cannon shell */
       SH.rect(bx, by, 2, 2, '#ffffff');
       SH.ctx.save();
-      SH.ctx.globalAlpha = 0.5;
-      SH.rect(bx - 5, by + 0.5, 4, 1, '#ffd23f');
-      SH.ctx.globalAlpha = 0.25;
-      SH.rect(bx - 10, by + 0.5, 5, 1, '#ffd23f');
+      SH.ctx.globalAlpha = 0.4;
+      SH.rect(bx - 4, by + 0.5, 3, 1, '#ffd23f');
       SH.ctx.restore();
       if (k < 0.45) {                       /* muzzle flash at the barrel */
         var fa = 1 - k / 0.45;
@@ -1155,8 +1177,7 @@
 
     this.fx.forEach(function (f2) {
       var i = Math.min(f2.n - 1, Math.floor(f2.t / f2.dur * f2.n));
-      SH.drawC(f2.sheet, f2.sheet === 'hud' ? SH.frameOf('hud', 'graze0', 0) + i : i,
-               f2.x, f2.y, {});
+      SH.drawC(f2.sheet, i, f2.x, f2.y, {});
     });
 
     this.pops.forEach(function (p2) {
@@ -1223,8 +1244,16 @@
       if (self.chaosFrozen > 0) o.alpha = 0.6;
       SH.drawC(bl.spr, 0, bl.x, bl.y, o);
     });
-    /* the soul */
+    /* the soul, wearing its graze outline when bullets are shaving past */
     if (!(this.soul.iframe > 0 && Math.floor(this.soul.iframe * 16) % 2 === 0)) {
+      if (this.grazeGlow > 0) {
+        var gg = this.grazeGlow * (0.72 + 0.28 * Math.sin(this.anim * 26));
+        SH.ctx.save();
+        SH.ctx.globalAlpha = gg * 0.3;
+        SH.ellipseFill(this.soul.x, this.soul.y, 9, 9, '#7fdcff');
+        SH.ctx.restore();
+        SH.drawC('fx_soulring', 0, this.soul.x, this.soul.y, { alpha: gg });
+      }
       SH.drawC('hud', SH.frameOf('hud', 'soul', 0), this.soul.x, this.soul.y, {});
     }
     SH.ctx.restore();

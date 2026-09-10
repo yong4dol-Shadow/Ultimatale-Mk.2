@@ -516,6 +516,40 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     await page.evaluate(() => typeof SH.groundShadow === 'function' &&
                               typeof SH.ellipseFill === 'function'));
 
+  /* ---- graze feedback and the gunshot impact ------------------------- */
+  const graze = await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier'], {});
+    SH.Game.tp = 0;
+    b.state = 'enemyturn';
+    b.soul.x = b.box.x + 40; b.soul.y = b.box.y + 20;
+    /* park a bullet just outside the hit radius so it only ever grazes */
+    b.bullets = [{
+      x: b.soul.x + 9, y: b.soul.y, w: 6, h: 6, vx: 0, vy: 0, life: 5,
+      dmg: 3, spr: 'p_bullet', rot: 0, spin: 0, grazed: false, warn: 0, tick: 0
+    }];
+    for (let i = 0; i < 12; i++) b.updateBullets(1 / 60);
+    const lit = b.grazeGlow, pops = b.pops.length, tp = SH.Game.tp;
+    b.bullets.length = 0;
+    for (let i = 0; i < 60; i++) b.update(1 / 60);
+    return { lit, pops, tp, faded: b.grazeGlow };
+  });
+  check('a graze charges TP', graze.tp > 0);
+  check('a graze lights the soul outline instead of popping text',
+    graze.lit > 0 && graze.pops === 0);
+  check('the graze outline fades once the bullets are gone', graze.faded === 0);
+
+  const impact = await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier'], {});
+    b.hitEnemy(b.enemies[0], 3, 'shot');
+    const gun = b.fx.map(f => f.sheet);
+    b.fx.length = 0;
+    b.hitEnemy(b.enemies[0], 3);
+    return { gun: gun, energy: b.fx.map(f => f.sheet) };
+  });
+  check('a landed shot bursts instead of slashing',
+    impact.gun.includes('fx_hit') && !impact.gun.includes('fx_slash'));
+  check('Chaos damage still uses the energy slash', impact.energy.includes('fx_slash'));
+
   /* ---- Chaos Blast and the renamed Chaos Control --------------------- */
   const chaos = await page.evaluate(() => {
     const b = new SH.Battle(['gun_soldier', 'gun_soldier'], {});

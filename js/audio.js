@@ -92,6 +92,27 @@
     src.start(t); src.stop(t + dur);
   }
 
+  /* A shaped noise burst - the piece the plain kick/snare/hat drums could
+     not cover.  Everything that is supposed to sound like an impact (a
+     round striking armour, a body going up) is noise pushed through a
+     filter sweep, not a tone. */
+  function burst(t, opts) {
+    var o = opts || {};
+    var src = ac.createBufferSource(), fl = ac.createBiquadFilter(), gn = ac.createGain();
+    var dur = o.dur || 0.12;
+    src.buffer = noise();
+    src.playbackRate.value = o.rate || 1;
+    fl.type = o.type || 'bandpass';
+    fl.Q.value = o.q === undefined ? 1.0 : o.q;
+    fl.frequency.setValueAtTime(o.f0 || 2000, t);
+    fl.frequency.exponentialRampToValueAtTime(Math.max(o.f1 || o.f0 || 2000, 40), t + dur);
+    gn.gain.setValueAtTime(0.0001, t);
+    gn.gain.exponentialRampToValueAtTime(o.vol === undefined ? 0.2 : o.vol, t + (o.atk || 0.004));
+    gn.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(fl); fl.connect(gn); gn.connect(master);
+    src.start(t); src.stop(t + dur + 0.02);
+  }
+
   /* ---- tracks -------------------------------------------------------- */
   function P(s) { return s.trim().split(/\s+/); }
 
@@ -387,17 +408,62 @@
         case 'move':    tone(880, t, 0.05, 0.10, 'pulse25'); break;
         case 'confirm': tone(660, t, 0.06, 0.13, 'pulse'); tone(990, t + 0.05, 0.09, 0.13, 'pulse'); break;
         case 'cancel':  tone(330, t, 0.09, 0.11, 'pulse25'); break;
-        case 'hit':     drum('s', t, 0.5); tone(160, t, 0.16, 0.20, 'saw', 0.4); break;
-        case 'slash':   tone(1400, t, 0.10, 0.16, 'saw', 0.25); drum('h', t, 0.4); break;
-        case 'hurt':    tone(220, t, 0.28, 0.22, 'saw', 0.35); drum('s', t, 0.6); break;
-        case 'spare':   [523, 659, 784, 1047].forEach(function (f, i) { tone(f, t + i * 0.07, 0.18, 0.13, 'pulse25'); }); break;
-        case 'kill':    tone(90, t, 0.5, 0.26, 'saw', 0.25); drum('k', t, 0.9); break;
-        case 'graze':   tone(1760, t, 0.04, 0.06, 'pulse12'); break;
+        /* --- battle hits.  These used to be one drum plus one tone each,
+           which is why every exchange sounded the same; they are now layered
+           the way a 16-bit sound driver would have layered them: a noise
+           transient for the impact, a body tone under it, a tail. */
+        case 'hit':                                   /* a round finds armour */
+          burst(t, { f0: 5200, f1: 900, q: 0.7, dur: 0.09, vol: 0.30 });
+          tone(210, t, 0.13, 0.22, 'saw', 0.28);
+          tone(1250, t + 0.005, 0.05, 0.10, 'pulse12', 0.35);   // metallic ring
+          tone(78, t + 0.01, 0.18, 0.15, 'tri', 0.5);
+          break;
+        case 'slash':                                 /* an energy strike */
+          burst(t, { f0: 900, f1: 6400, q: 2.2, dur: 0.10, vol: 0.16 });
+          tone(1600, t, 0.09, 0.15, 'saw', 0.22);
+          tone(2400, t + 0.02, 0.07, 0.09, 'pulse12', 0.3);
+          drum('h', t + 0.01, 0.4);
+          break;
+        case 'hurt':                                  /* Shadow takes damage */
+          burst(t, { f0: 3000, f1: 260, q: 0.6, dur: 0.20, vol: 0.30 });
+          tone(300, t, 0.30, 0.24, 'saw', 0.24);
+          tone(151, t + 0.01, 0.34, 0.18, 'pulse25', 0.32);     // the flat, ugly clash
+          tone(60, t + 0.02, 0.30, 0.20, 'tri', 0.7);
+          break;
+        case 'spare':                                 /* mercy accepted */
+          [523, 659, 784, 1047, 1319].forEach(function (f, i) {
+            tone(f, t + i * 0.06, 0.30, 0.11, 'pulse25');
+            tone(f * 2, t + i * 0.06, 0.22, 0.04, 'pulse12');   // shimmer octave
+          });
+          tone(262, t, 0.75, 0.10, 'tri');                      // bell body
+          burst(t + 0.30, { f0: 6000, f1: 11000, q: 3, dur: 0.35, vol: 0.05 });
+          break;
+        case 'kill':                                  /* something goes up */
+          burst(t, { f0: 4200, f1: 120, q: 0.5, dur: 0.55, vol: 0.34 });
+          burst(t + 0.05, { type: 'lowpass', f0: 1400, f1: 90, dur: 0.7, vol: 0.22 });
+          tone(120, t, 0.55, 0.26, 'saw', 0.18);
+          tone(52, t + 0.03, 0.85, 0.22, 'tri', 0.6);
+          drum('k', t, 1.0); drum('k', t + 0.07, 0.6);
+          break;
+        case 'graze':                                 /* a bullet shaves past */
+          burst(t, { f0: 5200, f1: 9000, q: 6, dur: 0.10, vol: 0.07 });
+          tone(2093, t, 0.05, 0.05, 'pulse12', 1.5);
+          tone(3136, t + 0.03, 0.07, 0.03, 'pulse12', 1.3);
+          break;
         case 'pickup':  [784, 1047, 1319].forEach(function (f, i) { tone(f, t + i * 0.05, 0.12, 0.12, 'pulse'); }); break;
         case 'heal':    [523, 784].forEach(function (f, i) { tone(f, t + i * 0.09, 0.22, 0.11, 'tri'); }); break;
         case 'unlock':  [392, 523, 659, 880].forEach(function (f, i) { tone(f, t + i * 0.08, 0.2, 0.13, 'pulse25'); }); break;
         case 'deny':    tone(180, t, 0.16, 0.15, 'saw'); tone(140, t + 0.1, 0.16, 0.15, 'saw'); break;
-        case 'encounter': tone(1200, t, 0.08, 0.16, 'pulse12'); tone(900, t + 0.09, 0.08, 0.16, 'pulse12'); tone(600, t + 0.18, 0.22, 0.18, 'saw', 0.4); break;
+        /* the encounter sting: two warning blips, then the screen slams */
+        case 'encounter':
+          tone(1200, t, 0.07, 0.16, 'pulse12');
+          tone(1200, t + 0.10, 0.07, 0.16, 'pulse12');
+          burst(t + 0.20, { f0: 3800, f1: 200, q: 0.6, dur: 0.30, vol: 0.26 });
+          tone(600, t + 0.20, 0.26, 0.18, 'saw', 0.35);
+          tone(300, t + 0.20, 0.40, 0.16, 'pulse25', 0.5);
+          tone(75, t + 0.22, 0.50, 0.20, 'tri', 0.7);
+          drum('k', t + 0.20, 1.1);
+          break;
         /* Chaos Spear: charge whine, then a lance that cracks the air */
         case 'chaos':
           for (var ci = 0; ci < 9; ci++) {
@@ -446,10 +512,11 @@
           break;
         /* the sidearm */
         case 'gunshot':
-          drum('s', t, 1.0);
-          tone(320, t, 0.10, 0.24, 'saw', 0.18);
-          tone(1500, t, 0.05, 0.16, 'pulse12', 0.25);
-          tone(90, t + 0.02, 0.20, 0.16, 'tri', 0.4);
+          burst(t, { type: 'highpass', f0: 2600, f1: 700, q: 0.4, dur: 0.13, vol: 0.34 });
+          tone(420, t, 0.09, 0.24, 'saw', 0.14);
+          tone(1900, t, 0.035, 0.14, 'pulse12', 0.2);
+          tone(88, t + 0.01, 0.22, 0.18, 'tri', 0.4);
+          burst(t + 0.06, { type: 'lowpass', f0: 900, f1: 200, dur: 0.22, vol: 0.08 });
           break;
         case 'reload':  tone(700, t, 0.04, 0.09, 'pulse25'); tone(500, t + 0.07, 0.05, 0.09, 'pulse25'); break;
         case 'tip':     [880, 1175].forEach(function (f, i) { tone(f, t + i * 0.06, 0.12, 0.09, 'pulse25'); }); break;

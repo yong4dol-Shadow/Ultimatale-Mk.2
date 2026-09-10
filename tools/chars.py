@@ -169,12 +169,12 @@ def _twin_tails(cv, x, y, phase):
 #   O outline   S sclera   I iris   e pupil
 #   M muzzle    m shade    N nose   n nose highlight
 EYE = [
-    '..OOOOO.',
-    '.OSSSIIO',
+    '.OOOOO..',
+    'OSSSIIO.',
     'OSSSSIeO',
-    'OSSSSIeO',
-    '.OSSSIIO',
-    '..OOOOO.',
+    '.OSSSIeO',
+    '..OSSIIO',
+    '...OOOO.',
 ]
 
 MUZZLE = [
@@ -203,6 +203,12 @@ def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
         cv.poly([(hx - 2.6, hy - 7.0), (hx - 2.2, hy - 8.4), (hx - 1.0, hy - 7.2)], 'm')
 
     cv.stamp(MUZZLE, hx + muzzle_dx, hy + muzzle_dy)
+    # jaw: the cheek line running back from the chin, and the fur under it.
+    # Without it the muzzle just melts into the head.
+    cv.line(hx + muzzle_dx + 1.0, hy + muzzle_dy + 5.4,
+            hx - 3.0, hy + 3.2, 'f')
+    cv.line(hx + muzzle_dx + 2.0, hy + muzzle_dy + 6.0,
+            hx - 2.0, hy + 4.4, 'O')
     cv.stamp(EYE, hx + eye_dx, hy + eye_dy, {'I': pal_eye})
 
     if stripe_eye:                                           # red rim on the lid
@@ -230,21 +236,32 @@ EYE_S = [
     '.OOO.',
 ]
 
+# The small build follows the same rule as the battle head, but it has half
+# the pixels to say it with: the tan stays INSIDE the skull circle and only
+# the black nose wedge steps outside it.  Letting the tan itself clear the
+# silhouette is what made the overworld sprite look snouted.
 MUZZLE_S = [
     '..MMM..',
     '.MMMMN.',
-    'MMMMMNN',
-    'MMMMMM.',
-    '.mMMm..',
+    'MMMMNNN',
+    'MMMMN..',
+    '.mMm...',
 ]
 
 
-def _flame(cv, x, y, size=1.0, back=-1):
-    """The Air Shoes' jet wash - kept flat and swept back so it reads as a
-    skater's spray rather than a torch strapped to each boot."""
-    cv.taper_line(x, y, x + back * 4.0 * size, y - 0.2, 1.1 * size, 0.5, 'r')
-    cv.taper_line(x, y, x + back * 2.8 * size, y - 0.1, 0.8 * size, 0.5, 'o')
-    cv.px(x + back * 1.2 * size, y, 'O2')
+def _jet(cv, x, y, phase=0.0, back=-1, size=1.0):
+    """The Air Shoes' exhaust plume.
+
+    Anchored to the back of the skater and pulsing on the cycle, not
+    pinned to each moving foot - stuck to the boots it read as two little
+    fires chasing the feet around instead of thrust coming off the skates.
+    """
+    puff = 1.0 + 0.35 * math.sin(phase * math.pi * 2)
+    L = 7.0 * size * puff
+    cv.taper_line(x, y, x + back * L, y - 0.6, 2.3 * size, 0.6, 'r')
+    cv.taper_line(x, y, x + back * L * 0.72, y - 0.4, 1.6 * size, 0.5, 'o')
+    cv.taper_line(x, y, x + back * L * 0.42, y - 0.2, 1.0 * size, 0.5, 'O2')
+    cv.px(x + back * 1.0, y - 0.2, 'W')
 
 
 def _glide_trail(cv, x, y, phase=0.0, width=9):
@@ -256,7 +273,7 @@ def _glide_trail(cv, x, y, phase=0.0, width=9):
 
 
 def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
-               length=6.5, stride=4.0, flame=0.0, glide=False):
+               length=6.5, stride=4.0, glide=False):
     swing = math.sin(phase)
     # a running leg lifts; a skating leg stays on the floor and slides out
     lift = 0.0 if glide else max(0.0, math.cos(phase)) * 2.0
@@ -266,9 +283,7 @@ def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
     cv.ellipse(fx + 0.4, fy - 0.2, 2.8, 1.6, shoe)
     cv.ellipse(fx + 1.4, fy - 0.6, 1.6, 1.1, accent)
     cv.rect(fx - 2.4, fy + 0.7, 6, 1, 'W')
-    if flame > 0:
-        # low, swept-back jet wash rather than a torch: it hugs the ground
-        _flame(cv, fx - 2.8, fy + 0.1, flame)
+
 
 
 # Front view: both eyes at once, irises turned inward the way the source
@@ -296,19 +311,16 @@ def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=Fals
     """
     ln = 6.3 if skate else 6.5
     st = 5.6 if skate else 4.0
-    # flame strength follows each foot through the cycle
-    fa = (0.5 + 0.5 * math.cos(leg_a)) * 1.15 if skate else 0.0
-    fb = (0.5 + 0.5 * math.cos(leg_b)) * 1.0 if skate else 0.0
     if wide:
-        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, fb, skate)
-        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, fa, skate)
+        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, skate)
+        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, skate)
         cv.taper_line(tx - 4.0, ty - 1, tx - 4.8, ty + 3.6, 1.4, 1.1, 'f')
         cv.circle(tx - 4.8, ty + 4.4, 1.5, 'w')
         cv.taper_line(tx + 4.0, ty - 1, tx + 4.8, ty + 3.6, 1.5, 1.2, 'F')
         cv.circle(tx + 4.8, ty + 4.4, 1.6, 'W')
     else:
-        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r', ln, st, fb, skate)
-        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C', ln, st, fa, skate)
+        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r', ln, st, skate)
+        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C', ln, st, skate)
         cv.taper_line(tx + 0.6, ty - 1, tx - 1.4, ty + 4, 1.4, 1.1, 'f')
         cv.taper_line(tx + 2.2, ty - 1.2, tx + 2.2 + arm_swing * 3.0, ty + 4.0, 1.5, 1.2, 'F')
         cv.circle(tx + 2.2 + arm_swing * 3.0, ty + 4.6, 1.6, 'W')
@@ -352,11 +364,12 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
 
     if pose == 'skate':
         _glide_trail(cv, 14, 26, t_phase, 7)
+        _jet(cv, 14.5, 25.5, t_phase, -1, 1.0)
     _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False, pose == 'skate')
 
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
-    cv.stamp(MUZZLE_S, hx + 1.6, hy - 1.0)
+    cv.stamp(MUZZLE_S, hx + 0.4, hy - 1.0)
     cv.stamp(EYE_S, hx - 2.0, hy - 4.0, {'I': 'E'})
     if striped:
         cv.px(hx - 1.0, hy - 5.0, 'R')
@@ -397,6 +410,8 @@ def _ow_front(cv, kind, pose, ang, striped, back, t_phase=0.0):
     if pose == 'skate':
         _glide_trail(cv, hx - 4, 26, t_phase, 5)
         _glide_trail(cv, hx + 9, 26, t_phase + 0.5, 5)
+        _jet(cv, hx - 4.5, 26.5, t_phase, -1, 0.6)
+        _jet(cv, hx + 4.5, 26.5, t_phase + 0.5, 1, 0.6)
     _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True, pose == 'skate')
     cv.ellipse(tx, ty - 1.0, 2.4, 2.6, 'w' if back else 'W')      # chest / back fur
 
@@ -505,6 +520,10 @@ def hedgehog(kind='shadow', pose='idle', t=0.0, bob=0.0):
     striped = (kind == 'shadow')
 
     # --- back-to-front ---------------------------------------------------
+    if pose == 'skate':
+        # thrust first, so the boots and the trail draw over it
+        _glide_trail(cv, torso_x - 1, hip_y + 8.6, t, 6)
+        _jet(cv, torso_x - 7.0, hip_y + 7.4, t, -1, 0.95)
     quills(cv, hx, hy, flap=math.sin(ang) * 1.2)
     if kind == 'tails':
         _twin_tails(cv, torso_x - 5, hip_y - 2, ang)
