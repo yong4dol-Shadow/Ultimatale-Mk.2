@@ -240,18 +240,16 @@ OW_GROUND = 29
 # Bigger than it looks like it should be: on an eleven-pixel head a four-row
 # eye is a dot, and next to any muzzle at all the face reads as all snout.
 #
-# The glare comes from the RED BROW, not from the eye outline: a heavy band
-# slanting down over the eye, with `R` mapped to plain fur for the
-# characters who do not have the streak.
-#
-# WHICH WAY it slants is the whole thing.  The head faces right, so the
-# front is the right-hand column, and a sharp eye has the lid coming DOWN
-# toward the front - tall and round at the back, pinched at the front.
-# Sloping it the other way (open at the front, brow rising) is the same
-# band of red and reads as wide-eyed and mild, which is the opposite.
+# No brow.  A red band over the eye is a distinct eyebrow, and Sonic-series
+# characters do not have one - it was the wrong fix even when it slanted the
+# right way.  The sharpness has to come from the eye's own LID: the dark top
+# edge sits lower at the FRONT (the right-hand column, since the head faces
+# right), cutting the front-top corner off the opening, so the eye is a
+# wedge - round at the back, pinched toward the muzzle.  Slanting it the
+# other way, or leaving it level, is the mild face.
 EYE_S = [
-    '.RRRRRR',
-    'OSSIIRR',
+    '.OOOOO.',
+    'OSSIIOO',
     'OSSIIeO',
     '.OSIIeO',
     '..OOOO.',
@@ -442,8 +440,10 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
     cv.stamp(MUZZLE_S, hx + 0.4, hy + 0.2)
-    cv.stamp(EYE_S, hx - 2.6, hy - 4.6,
-             {'I': 'E', 'R': 'R' if striped else 'F'})
+    cv.stamp(EYE_S, hx - 2.6, hy - 4.6, {'I': 'E'})
+    if striped:                       # the head stripe, not an eyebrow
+        cv.px(hx - 1.0, hy - 5.4, 'R')
+        cv.px(hx + 0.0, hy - 5.4, 'R')
 
 
 
