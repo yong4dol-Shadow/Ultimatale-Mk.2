@@ -13,6 +13,10 @@
 
   var TS = 16;
 
+  /* boards, people and dropped data slates: readable as often as you
+     like, and never mission objectives */
+  var READABLE = { sign: 1, npc: 1, log: 1 };
+
   /* Top speeds and how fast he gets there.  ACCEL is a hair under a second
      from a standstill to a full skate, which is the window the acceleration
      art needs to read; DECEL is much sharper so letting go still stops him
@@ -25,9 +29,16 @@
      it.  Burn charges while skating (scaled by how fast he is actually
      going) and drains quickly when he stops, which puts a full second on
      the heel-vents stage. */
-  var FIRE_1 = 0.35, FIRE_2 = 1.35, BURN_DRAIN = 2.5;
+  /* Burn bleeds off SLOWLY once he stops, and never all the way back to
+     cold: once the Air Shoes have been lit they stay warm, so pausing at a
+     save point or reading a sign does not mean winding the whole thing up
+     from nothing again. */
+  var FIRE_1 = 0.35, FIRE_2 = 1.35, BURN_DRAIN = 0.45;
   /* the spin: a short roll you can trigger once he is at a full burn */
   var SPIN_TIME = 0.62, SPIN_BOOST = 1.4;
+  /* the spin dash: hold down, tap Z or X to rev, let go to launch.  Six
+     revs is a standing start straight into top speed. */
+  var REV_MAX = 6, REV_DECAY = 1.4, SPIN_DASH_TIME = 0.55;
 
   function Overworld(mapId, opt) {
     opt = opt || {};
@@ -41,7 +52,8 @@
       face: 1,            // -1 / +1, only meaningful when dir === 'side'
       dir: 'down',        // 'side' | 'down' | 'up'
       anim: 0, moving: false, skating: false, spd: 0, charge: 0,
-      burn: 0, spin: 0
+      burn: 0, spin: 0, rev: 0, revving: false, lit: false,
+      ateConfirm: false
     };
     this.walked = 0;
     this.nextEnc = this.rollEncDistance();
@@ -200,8 +212,8 @@
   Overworld.prototype.nearObject = function () {
     var p = this.player, best = null, bd = 24 * 24;
     this.map.objects.forEach(function (o) {
-      if (o.kind !== 'gate' && o.kind !== 'save' && o.kind !== 'sign' &&
-          o.kind !== 'npc' && (o.used || !o.alive)) return;
+      if (o.kind !== 'gate' && o.kind !== 'save' && !READABLE[o.kind] &&
+          (o.used || !o.alive)) return;
       var dx = o.x - p.x, dy = o.y - p.y, d = dx * dx + dy * dy;
       if (d < bd) { bd = d; best = o; }
     });
@@ -214,11 +226,11 @@
 
     /* Boards and bystanders: read as often as you like, never an objective.
        They are where the plot lives between missions. */
-    if (o.kind === 'sign' || o.kind === 'npc') {
+    if (o.kind === 'sign' || o.kind === 'npc' || o.kind === 'log') {
       var lore = (SH.MapLore[this.mapId] || {})[o.kind] || [];
       var body = lore[o.loreIndex % (lore.length || 1)] ||
                  ['…아무것도 적혀 있지 않다.'];
-      SH.Audio.sfx(o.kind === 'sign' ? 'confirm' : 'text');
+      SH.Audio.sfx(o.kind === 'npc' ? 'text' : 'confirm');
       this.box = new SH.Textbox(body.map(function (t) { return { text: t }; }),
                                 { onDone: function () { self.box = null; } });
       SH.Tips.show('ow_read', '표지판과 사람들에게는 읽을 것이 있다.  미션과는 상관없다.');
@@ -395,15 +407,61 @@
     p.moving = !!(ax.x || ax.y);
     p.skating = p.moving && dash;
 
-    /* Spin: press down at a full burn and he curls up and rolls.  It keeps
-       the heading he already had, so it never fights the D-pad for a turn,
-       it carries itself once started, and nothing can jump him mid-roll. */
+    /* --- spin dash ------------------------------------------------------
+       Standing still with down held is the charge stance: every tap of Z or
+       X winds him up one turn, and letting go of down fires him off.  It is
+       gated on standing still so it never competes with the rolling spin
+       below, which is the moving-at-speed version. */
+    /* The stance begins on the first TAP, not on down alone - down on its
+       own still just walks him toward the camera, which is most of what
+       the key is for. */
+    var downHeld = p.spin <= 0 && SH.Input.down('down') && !ax.x;
+    var tap = downHeld && (SH.Input.pressed('confirm') || SH.Input.pressed('cancel'));
+    var revStance = downHeld && (p.revving || tap);
+    if (revStance) {
+      p.revving = true;
+      p.moving = false;
+      p.skating = false;
+      if (tap) {
+        p.rev = Math.min(REV_MAX, p.rev + 1);
+        p.ateConfirm = true;          /* so the tap does not also interact */
+        SH.Audio.sfx('rev');
+        SH.shake(1 + p.rev * 0.3, 0.08);
+        SH.Tips.show('ow_revdash',
+          '↓ 를 누른 채 Z / X 를 연타하면 스핀 대시.  6번이면 최고 속도로 튀어나간다.');
+      }
+      /* an untended charge unwinds rather than holding forever */
+      p.rev = Math.max(0, p.rev - dt * REV_DECAY * 0.35);
+      ax = { x: 0, y: 0 };
+    } else if (p.revving) {
+      p.revving = false;
+      var wind = Math.round(p.rev);
+      p.rev = 0;
+      if (wind > 0) {
+        p.spin = SPIN_DASH_TIME + wind * 0.09;
+        /* six turns is a standing start straight into top speed */
+        p.spd = TOP_DASH * (0.45 + 0.55 * Math.min(1, wind / REV_MAX));
+        p.burn = FIRE_2;                  /* comes out of it fully lit */
+        p.lit = true;
+        SH.Audio.sfx('chaos');
+        SH.shake(4, 0.18);
+      }
+    }
+
+    /* Rolling.  It keeps the heading he already had, so it never fights the
+       D-pad for a turn, it carries itself once started, and nothing can jump
+       him mid-roll.  Pushing the stick the way he is already going uncurls
+       him straight back into the skate. */
     if (p.spin > 0) {
       p.spin = Math.max(0, p.spin - dt);
       p.moving = true;
       p.skating = true;
-    } else if (p.skating && p.burn >= FIRE_2 && p.dir === 'side' &&
-               SH.Input.pressed('down')) {
+      if (ax.x === p.face) {
+        p.spin = 0;                       /* uncurl, back on the shoes */
+        p.burn = Math.max(p.burn, FIRE_2);
+      }
+    } else if (!revStance && p.skating && p.burn >= FIRE_2 &&
+               p.dir === 'side' && SH.Input.pressed('down')) {
       p.spin = SPIN_TIME;
       SH.Audio.sfx('chaos');
     }
@@ -424,8 +482,10 @@
           '에어 슈즈가 완전히 점화됐다.  이 상태에서 ↓ 를 누르면 스핀 (조우 무시).');
       }
     } else {
-      p.burn = Math.max(0, p.burn - dt * BURN_DRAIN);
+      /* the floor is the heel-vent stage once he has ever been fully lit */
+      p.burn = Math.max(p.lit ? FIRE_1 : 0, p.burn - dt * BURN_DRAIN);
     }
+    if (p.burn >= FIRE_2) p.lit = true;
 
     var speed = p.spd * SH.Settings.speedMul() * dt;
     if (p.spin > 0) speed *= SPIN_BOOST;
@@ -453,7 +513,8 @@
       }
     }
 
-    if (SH.Input.pressed('confirm')) this.interact();
+    if (SH.Input.pressed('confirm') && !p.ateConfirm) this.interact();
+    p.ateConfirm = false;
     if (this.nearObject()) SH.Tips.show('ow_prompt', 'Z 표시가 뜬 곳은 조사할 수 있다.');
 
     /* camera */
@@ -564,16 +625,20 @@
         var near = self.nearObject() === o;
         SH.draw('signpost', SH.frameOf('signpost', near ? 'lit' : 'idle', 0),
                 o.x - 8 - cx, o.y - 16 - cy);
+      } else if (o.kind === 'log') {
+        var nearL = self.nearObject() === o;
+        SH.draw('datalog', SH.frameOf('datalog', nearL ? 'lit' : 'idle', 0),
+                x, y + Math.sin(SH.time * 2 + o.tx) * 1.2);
       } else if (o.kind === 'npc') {
         var who = ['a', 'b', 'c'][(o.variant || 0) % 3];
         SH.draw('civilian', SH.frameOf('civilian', who, (SH.time * 2 + o.tx) | 0),
                 o.x - 8 - cx, o.y - 16 - cy);
       }
       /* interaction prompt */
-      var readable = o.kind === 'sign' || o.kind === 'npc';
+      var readable = !!READABLE[o.kind];
       if (self.nearObject() === o &&
           (readable || !(o.used || !o.alive) || o.kind === 'gate')) {
-        SH.text('Z', o.x - cx, o.y - cy - (readable ? 26 : 20),
+        SH.text('Z', o.x - cx, o.y - cy - (o.kind === 'log' ? 18 : (readable ? 26 : 20)),
                 { color: '#ffd23f', size: 9, align: 'center' });
       }
     });
@@ -591,7 +656,13 @@
     var sheet = SH.Game.superForm ? 'shadow_super_ow' : 'shadow_ow';
     var pre = p.dir === 'down' ? 'down_' : (p.dir === 'up' ? 'up_' : '');
     var anim, phase;
-    if (p.spin > 0) { anim = pre + 'spin'; phase = p.anim * 2; }
+    if (p.revving && p.rev > 0.2) {
+      /* winding up: the ball on the spot, shaking harder the tighter the
+         spring is wound */
+      anim = pre + 'spin';
+      phase = SH.time * (14 + p.rev * 5);
+      x += Math.round(Math.sin(SH.time * 60) * (0.5 + p.rev * 0.35));
+    } else if (p.spin > 0) { anim = pre + 'spin'; phase = p.anim * 2; }
     else if (p.skating) {
       var lvl = p.burn >= FIRE_2 ? 2 : (p.burn >= FIRE_1 ? 1 : 0);
       anim = pre + 'skate' + lvl;

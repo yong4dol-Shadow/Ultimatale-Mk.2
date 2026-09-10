@@ -162,6 +162,22 @@ def signpost(lit=False):
     return cv
 
 
+def datalog(lit=False):
+    """A dropped data slate.  The third readable, after boards and people."""
+    cv = Canvas(16, 16)
+    cv.poly([(2, 5), (14, 5), (13, 14), (3, 14)], '3')       # casing
+    cv.rect(3, 6, 10, 6, '1')                                # screen
+    for i in range(3):
+        cv.rect(4, 7 + i * 2, 8 - (i % 2) * 4, 1, 'c' if lit else 'C')
+    cv.rect(5, 3, 6, 2, '4')                                 # handle
+    cv.rect(6, 12, 4, 1, '5')
+    if lit:
+        cv.px(13, 6, 'y')
+        cv.px(2, 13, 'y')
+    cv.outline('0')
+    return cv
+
+
 def civilian(kind=0, t=0.0):
     """A bystander.  Three flavours so a street does not look cloned."""
     cv = Canvas(16, 24)

@@ -199,6 +199,55 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('plain `skate` still means the full burn', fire.alias);
   check('the Air Shoes start cold and reach a full burn',
     fire.first === 0 && fire.last === 2 && fire.stages.includes(1));
+
+  /* Once lit they stay warm - stopping to read a sign should not mean
+     winding the whole thing back up from cold. */
+  const warm = await page.evaluate(async () => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const p = o.player;
+    p.burn = 2.0; p.lit = true; p.spd = 0;
+    SH.Input.state.right = false; SH.Input.state.cancel = false;
+    await new Promise(r => setTimeout(r, 1500));   // stand still a while
+    return { burn: p.burn, lit: p.lit };
+  });
+  check('a stop does not put the Air Shoes back to cold', warm.burn >= 0.35);
+
+  /* Spin dash: hold down, tap to rev, let go to launch. */
+  const dash = await page.evaluate(async () => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const p = o.player;
+    p.x = o.map.spawn.x; p.y = o.map.spawn.y;
+    p.spd = 0; p.spin = 0; p.rev = 0; p.burn = 0; p.lit = false;
+    p.dir = 'side'; p.face = 1;
+    SH.Input.state.down = true;
+    await new Promise(r => setTimeout(r, 200));
+    /* down on its own must still just walk him toward the camera */
+    const walksDown = !p.revving && p.dir === 'down' && p.moving;
+    /* six taps of the confirm key - the first one enters the stance */
+    for (let i = 0; i < 6; i++) {
+      SH.Input.buf.confirm = true;
+      await new Promise(r => setTimeout(r, 70));
+    }
+    const stance = p.revving;
+    const revs = p.rev, heldStill = p.spd;
+    SH.Input.state.down = false;
+    await new Promise(r => setTimeout(r, 60));
+    const launched = { spin: p.spin, spd: p.spd, burn: p.burn };
+    /* pushing the way he is already going uncurls him */
+    SH.Input.state.right = true;
+    await new Promise(r => setTimeout(r, 90));
+    const uncurled = p.spin;
+    SH.Input.state.right = false;
+    return { stance, walksDown, revs, heldStill, launched, uncurled };
+  });
+  check('down on its own still just walks him downward', dash.walksDown === true);
+  check('the first tap enters the spin-dash stance', dash.stance === true);
+  check('taps wind it up and he does not creep while charging',
+    dash.revs >= 4 && dash.heldStill < 5);
+  check('a full wind-up launches him at top speed',
+    dash.launched.spin > 0 && dash.launched.spd >= 170);
+  check('and he comes out of it already fully lit', dash.launched.burn >= 1.35);
+  check('pushing forward uncurls him back onto the shoes', dash.uncurled === 0);
   check('the fast option moves noticeably faster',
     moved.mulFast >= moved.mulSlow * 1.3 && moved.fast.px > moved.slow.px);
 

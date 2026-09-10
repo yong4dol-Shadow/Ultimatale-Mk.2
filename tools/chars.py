@@ -239,15 +239,18 @@ OW_GROUND = 29
 
 # Bigger than it looks like it should be: on an eleven-pixel head a four-row
 # eye is a dot, and next to any muzzle at all the face reads as all snout.
-# Same balance rule as the battle head - sclera and iris near even, iris
-# forward - and the cut bottom-back corner slants the lower lid into the
-# slight glare the source sprites have.
+#
+# The glare comes from the RED BROW, not from the eye outline.  In the
+# reference it is a heavy band slanting down over the front of the eye, and
+# with it in place the same eye reads sharp; without it, no amount of
+# cutting corners off the lids stops the face looking mild.  `R` maps to
+# plain fur for the characters who do not have the streak.
 EYE_S = [
-    '.OOOO.',
-    'OOSSIO',
-    'OSSIeO',
-    '.SSIIO',
-    '..OOO.',
+    '..RRRR.',
+    '.RRRSII',
+    'ROOSSIe',
+    'OOSSIIO',
+    '.OOOOO.',
 ]
 
 # Laid out the way the reference sprite lays a head out: the muzzle sits
@@ -435,10 +438,8 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
     cv.stamp(MUZZLE_S, hx + 0.4, hy + 0.2)
-    cv.stamp(EYE_S, hx - 2.2, hy - 4.4, {'I': 'E'})
-    if striped:
-        cv.px(hx - 1.0, hy - 5.4, 'R')
-        cv.px(hx + 0.0, hy - 5.4, 'R')
+    cv.stamp(EYE_S, hx - 2.8, hy - 5.4,
+             {'I': 'E', 'R': 'R' if striped else 'F'})
 
 
 
