@@ -265,6 +265,8 @@
     this.pops = [];
     this.bursts = [];
     this.spears = [];
+    this.afterImages = [];
+    this.ctrlT = undefined;
     this.anim = 0;
     this.shadowPose = 'idle';
     this.poseTimer = 0;
@@ -660,11 +662,19 @@
     if (a.atkDown) e.atk = Math.max(1, e.atk - a.atkDown);
     if (a.defDown) e.def_ = Math.max(0, e.def_ - a.defDown);
     if (a.playerAtkUp) this.G().atk += a.playerAtkUp;
-    if (a.chaosControl) this.chaosPending = 2.4;
+
     if (a.surrender) this.surrendered = true;
     e.usedActs[idx] = true;
 
     var lines = a.text.map(function (t) { return { text: t }; });
+    if (a.chaosControl) {
+      /* Devil Doom's own Chaos Control ACT plays the same fold */
+      this.chaosPending = 2.4;
+      this.startChaosControl(function () {
+        self.say(lines, function () { self.startEnemyTurn(); });
+      });
+      return;
+    }
     if (this.isSpareable(e)) {
       lines.push({ text: '※ ' + e.name + ' 의 이름이 노랗게 빛난다. 이제 SPARE 할 수 있다.' });
       SH.Tips.show('bt_spare', '이름이 노랗게 빛나면 MERCY → SPARE 로 살려보낼 수 있다.');
@@ -762,12 +772,29 @@
     });
   };
 
+  /* Chaos Control - time folds: the field stalls, ripples out from Shadow,
+     drops a trail of after-images, then snaps shut. */
+  Battle.prototype.startChaosControl = function (after) {
+    var self = this;
+    SH.Audio.sfx('control');
+    this.state = 'chaosfx';
+    this.fxTimer = 1.05;
+    this.ctrlT = 0;
+    this.ctrlRipples = 0;
+    this.afterImages = [];
+    this.pendingChaos = after;
+    this.addBurst({ x: 62, y: GROUND - 30, kind: 'charge', r0: 40, r1: 6,
+                    dur: 0.55, col: '#c0ff3c', col2: '#ffffff' });
+    SH.flash('#c0ff3c', 0.35);
+  };
+
   Battle.prototype.doFlee = function () {
     var self = this;
     SH.Story.recordFlee();
-    SH.Audio.sfx('control');
-    SH.flash('#c0ff3c', 0.3);
-    this.say([{ text: '카오스 컨트롤!' }], function () { self.finish('flee'); });
+    this.startChaosControl(function () {
+      self.say([{ text: '카오스 컨트롤!  시공을 접고 전장을 빠져나왔다.' }],
+               function () { self.finish('flee'); });
+    });
   };
 
   /* ---------- update ---------------------------------------------------- */
@@ -811,6 +838,22 @@
 
       case 'chaosfx': {
         this.fxTimer -= dt;
+        if (this.ctrlT !== undefined) {
+          this.ctrlT += dt;
+          /* three ripples leave the caster, one per beat. Driven from the
+             game clock, not setTimeout: a wall-clock timer keeps firing
+             after the battle has moved on. */
+          while (this.ctrlRipples < 3 && this.ctrlT >= this.ctrlRipples * 0.18) {
+            this.ctrlRipples++;
+            this.addBurst({ x: 62, y: GROUND - 30, kind: 'ring', r0: 3, r1: 200,
+                            dur: 0.7, col: '#c0ff3c', col2: '#ffffff' });
+          }
+          /* Shadow smears sideways as the fold takes hold */
+          if (this.afterImages.length < 7 && this.ctrlT > this.afterImages.length * 0.09) {
+            this.afterImages.push({ x: 62 + this.afterImages.length * 13, t: 0 });
+          }
+          this.afterImages.forEach(function (ai) { ai.t += dt; });
+        }
         var anyLanded = false;
         this.spears.forEach(function (sp) {
           sp.t += dt;
@@ -841,6 +884,9 @@
           });
         }
         if (this.fxTimer <= 0) {
+          this.ctrlT = undefined;
+          this.ctrlRipples = 0;
+          this.afterImages = [];
           this.spears.length = 0;
           var go2 = this.pendingChaos;
           this.pendingChaos = null;
@@ -1012,6 +1058,26 @@
                       3.4, e.hover ? 0.26 : 0.42);
       SH.drawFoot(e.sheet, fr, e.x + sx, GROUND - e.hover + float, op);
     });
+
+    /* Chaos Control: after-images of the caster streaking away */
+    if (this.ctrlT !== undefined) {
+      var sheetC = this.superForm ? 'shadow_super' : 'shadow';
+      var self2 = this;
+      this.afterImages.forEach(function (ai, i) {
+        var fade = SH.clamp(1 - ai.t * 1.1, 0, 1) * 0.5;
+        if (fade <= 0) return;
+        SH.drawFoot(sheetC, SH.frameOf(sheetC, 'attack', 0), ai.x, GROUND,
+                    { alpha: fade });
+      });
+      /* horizontal tear-lines across the field while time is folded */
+      SH.ctx.save();
+      for (var ln = 0; ln < 7; ln++) {
+        var ly = 22 + ((ln * 17 + this.ctrlT * 90) % 100);
+        SH.ctx.globalAlpha = 0.25 * SH.clamp(1.6 - this.ctrlT, 0, 1);
+        SH.rect(0, ly, SH.W, 1, '#c0ff3c');
+      }
+      SH.ctx.restore();
+    }
 
     /* rings, shockwaves and sparks */
     this.bursts.forEach(function (b2) {

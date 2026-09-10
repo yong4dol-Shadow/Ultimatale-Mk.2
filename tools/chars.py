@@ -179,9 +179,9 @@ EYE = [
 
 MUZZLE = [
     '...MMMM.....',
-    '.MMMMMNNN...',
-    'MMMMMMnNNNN.',
-    'MMMMMMMNNN..',
+    '.MMMMMMNN...',
+    'MMMMMMnNNN..',
+    'MMMMMMMNN...',
     '.MMMMMM.....',
     '..mMMm......',
 ]
@@ -232,9 +232,9 @@ EYE_S = [
 
 MUZZLE_S = [
     '..MMM..',
-    '.MMMNN.',
-    'MMMMNNN',
-    'MMMMNN.',
+    '.MMMMN.',
+    'MMMMMNN',
+    'MMMMMM.',
     '.mMMm..',
 ]
 

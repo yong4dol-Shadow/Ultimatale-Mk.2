@@ -138,7 +138,9 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   const moved = await page.evaluate(async () => {
     const walk = async (secs) => {
       const o = SH.scenes[SH.scenes.length - 1];
-      o.player.x = 40; o.player.y = 120;
+      // start from the map's own spawn: a hard-coded tile can end up
+      // inside a building once the layouts change
+      o.player.x = o.map.spawn.x; o.player.y = o.map.spawn.y;
       const start = o.player.x;
       const t0 = performance.now();
       SH.Input.state.right = true;
@@ -167,14 +169,11 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
       SH.Input.state = {};
       return out;
     };
-    o.player.x = 200; o.player.y = 200;
-    const down = await hold('down');
-    o.player.x = 200; o.player.y = 200;
-    const up = await hold('up');
-    o.player.x = 200; o.player.y = 200;
-    const left = await hold('left');
-    o.player.x = 200; o.player.y = 200;
-    const dash = await hold('right', 'cancel');
+    const home = () => { o.player.x = o.map.spawn.x; o.player.y = o.map.spawn.y; };
+    home(); const down = await hold('down');
+    home(); const up = await hold('up');
+    home(); const left = await hold('left');
+    home(); const dash = await hold('right', 'cancel');
     const sheet = SH.Assets.sheet('shadow_ow');
     return { down, up, left, dash, names: Object.keys(sheet.names), frames: sheet.frames };
   });
@@ -419,6 +418,14 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   await page.evaluate(() => {
     const b = SH.scenes[SH.scenes.length - 1];
     b.state = 'menu';
+    b.startChaosControl(function () {});
+    for (let i = 0; i < 34; i++) b.update(1 / 60);
+  });
+  await page.waitForTimeout(60);
+  await shot('11e_chaos_control');
+  await page.evaluate(() => {
+    const b = SH.scenes[SH.scenes.length - 1];
+    b.state = 'menu';
     b.startAttackBar(b.enemies[0]);
     b.bar.x = 0.05;
   });
@@ -559,6 +566,31 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('Chaos Spear throws one lance per target',
     spear.inFlight === 2 && spear.staggered === true);
   check('every lance lands its damage', spear.dealt.every(d => d > 0));
+
+  /* ---- Chaos Control plays a sequence and still freezes the next turn - */
+  const control = await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier'], {});
+    SH.Game.tp = 100;
+    b.openActs(b.enemies[0]);
+    const idx = b.menu.items.findIndex(i => i.value && i.value.kind === 'control');
+    b.state = 'menu';
+    b.startChaosControl(function () {});
+    const started = b.state === 'chaosfx';
+    const seen = {};
+    let images = 0;
+    for (let i = 0; i < 200 && b.state === 'chaosfx'; i++) {
+      b.bursts.forEach(x => { seen[x.kind] = true; });
+      images = Math.max(images, b.afterImages.length);
+      b.update(1 / 60);
+    }
+    return { started, kinds: Object.keys(seen), images,
+             cleared: b.afterImages.length === 0, hasControlAct: idx === -1 };
+  });
+  check('Chaos Control runs a fold sequence', control.started === true);
+  check('it ripples and leaves after-images',
+    control.kinds.indexOf('ring') >= 0 && control.kinds.indexOf('charge') >= 0 &&
+    control.images >= 4);
+  check('the after-images are cleaned up afterwards', control.cleared === true);
 
   /* ---- the time freeze survives the message that announces it -------- */
   const freeze = await page.evaluate(async () => {

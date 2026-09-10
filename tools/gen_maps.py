@@ -20,13 +20,18 @@ from collections import deque
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGET = os.path.join(ROOT, 'js', 'data_maps.js')
 
-W, H = 80, 56
+W, H = 128, 88
 
 
 class Grid:
-    def __init__(self, fill, wall):
+    def __init__(self, fill, wall, floor=None):
         self.g = [[fill] * W for _ in range(H)]
         self.fill = fill
+        # `floor` is every walkable character, not just the base fill: a
+        # grass patch or a road is as good a place for a prop as bare sand.
+        # ARK also starts as solid rock with its corridors carved out, so
+        # there its base fill is a wall and floor must be named explicitly.
+        self.floor = floor or fill
         for x in range(W):
             self.g[0][x] = wall
             self.g[H - 1][x] = wall
@@ -62,6 +67,40 @@ class Grid:
 
     def put(self, x, y, c):
         self.g[y][x] = c
+
+    def free(self, x, y, w, h):
+        """True when the whole rect is still untouched base floor."""
+        if x < 1 or y < 1 or x + w > W - 1 or y + h > H - 1:
+            return False
+        for j in range(h):
+            for i in range(w):
+                if self.g[y + j][x + i] not in self.floor:
+                    return False
+        return True
+
+    def block(self, x, y, w, h, c):
+        """Place a building only where it will not sit on a road."""
+        if self.free(x, y, w, h):
+            self.rect(x, y, w, h, c)
+            return True
+        return False
+
+    def place(self, x, y, c):
+        """Drop an object on the nearest open floor tile, spiralling out.
+
+        Layouts move around as the maps grow; pinning objects to exact
+        coordinates is how they end up buried inside a wall and fail the
+        reachability check."""
+        for r in range(0, 14):
+            for dy in range(-r, r + 1):
+                for dx in range(-r, r + 1):
+                    if max(abs(dx), abs(dy)) != r:
+                        continue
+                    nx, ny = x + dx, y + dy
+                    if 0 < nx < W - 1 and 0 < ny < H - 1 and self.g[ny][nx] in self.floor:
+                        self.g[ny][nx] = c
+                        return True
+        raise ValueError('no open floor near %d,%d for %r' % (x, y, c))
 
     def rows(self):
         return [''.join(r) for r in self.g]
@@ -102,114 +141,115 @@ def reachable(rows, solid, obj_chars):
 
 
 # --------------------------------------------------------------------------
-# Layouts. Everything is laid out in tiles; at 80x56 a stage is roughly four
-# screens across and three and a half down, which is what the "매우 빠름"
-# movement speed needs to feel like travel rather than a corridor.
+# Layouts. Everything is laid out in tiles; at 128x88 a stage is roughly six
+# screens across and five and a half down, so even the "매우 빠름" movement
+# speed has somewhere to go. Objects are dropped with place(), which finds
+# the nearest open floor rather than trusting a hard-coded coordinate.
 # --------------------------------------------------------------------------
 def westopolis():
-    g = Grid(',', '#')
-    for y in (8, 20, 32, 44):
+    g = Grid(',', '#', floor=',.-o')
+    for y in range(9, H - 8, 15):
         g.hroad(y, '.', '-')
-    for x in (18, 40, 62):
+    for x in range(20, W - 14, 27):
         g.vroad(x, '.')
-    blocks = [(2, 2, 12, 5), (24, 2, 12, 5), (46, 2, 12, 5), (68, 2, 9, 5),
-              (2, 12, 12, 6), (24, 12, 12, 6), (46, 12, 12, 6), (68, 12, 9, 6),
-              (2, 24, 12, 6), (24, 24, 12, 6), (46, 24, 12, 6), (68, 24, 9, 6),
-              (2, 36, 12, 6), (24, 36, 12, 6), (46, 36, 12, 6), (68, 36, 9, 6),
-              (2, 48, 12, 6), (24, 48, 12, 6), (46, 48, 12, 6)]
-    for i, (x, y, w, h) in enumerate(blocks):
-        g.rect(x, y, w, h, '%' if i % 3 else '#')
-    for x, y in ((16, 14), (38, 27), (60, 39), (22, 50), (66, 16)):
-        g.put(x, y, 'x')
-    for x, y in ((12, 10), (50, 22), (30, 46), (72, 34)):
-        g.put(x, y, 'o')
-    g.put(2, 9, 'S')
-    g.put(16, 3, 'T'); g.put(44, 34, 'T'); g.put(66, 50, 'T')
-    g.put(38, 10, 'V'); g.put(60, 46, 'V')
-    g.put(52, 21, 'E')
-    g.put(76, 53, 'G')
+    for by in range(2, H - 6, 15):
+        for bx in range(2, W - 10, 13):
+            g.block(bx, by, 11, 6, '%' if (bx // 13 + by // 15) % 3 else '#')
+    for i in range(14):
+        g.place(9 + i * 8, 6 + (i % 5) * 15, 'x')
+    for i in range(9):
+        g.place(16 + i * 13, 12 + (i % 4) * 18, 'o')
+    g.place(3, 10, 'S')
+    g.place(24, 4, 'T'); g.place(70, 52, 'T'); g.place(104, 80, 'T')
+    g.place(60, 12, 'V'); g.place(96, 62, 'V')
+    g.place(84, 34, 'E')
+    g.put(124, 85, 'G')
     return g
 
 
 def glyphic_canyon():
-    g = Grid('.', '#')
-    g.rect(40, 1, 39, 26, ',')
-    g.rect(2, 32, 34, 22, ',')
-    for x, y in ((8, 6), (8, 7), (20, 14), (20, 15), (56, 36), (56, 37),
-                 (68, 10), (68, 11), (30, 44), (30, 45), (46, 20), (46, 21)):
-        g.put(x, y, '|')
-    g.box(10, 16, 13, 10, '=', '.', (('S', 5),))
-    g.box(48, 38, 15, 12, '=', '.', (('N', 6),))
-    g.box(30, 4, 12, 9, '=', '.', (('E', 3),))
-    g.box(62, 20, 14, 11, '=', '.', (('W', 4),))
-    g.rect(26, 28, 20, 4, '#')
-    g.rect(34, 28, 4, 4, '.')
-    g.put(2, 2, 'S')
-    g.put(16, 21, 'T'); g.put(55, 44, 'T'); g.put(35, 8, 'T')
-    g.put(8, 40, 'C'); g.put(50, 14, 'C'); g.put(72, 34, 'C')
-    g.put(26, 46, 'P'); g.put(66, 6, 'P'); g.put(14, 6, 'P')
-    g.put(68, 25, 'V'); g.put(20, 36, 'V')
-    g.put(76, 4, 'E')
-    g.put(76, 53, 'G')
+    g = Grid('.', '#', floor='.,')
+    g.rect(64, 1, 63, 42, ',')
+    g.rect(2, 50, 56, 36, ',')
+    for i in range(16):
+        x, y = 8 + (i * 17) % (W - 20), 6 + (i * 23) % (H - 16)
+        g.block(x, y, 2, 3, '|')
+    rooms = [(14, 24, 18, 14), (74, 58, 22, 18), (44, 6, 18, 13),
+             (96, 28, 20, 16), (22, 62, 20, 16), (60, 30, 16, 12)]
+    for i, (x, y, w, h) in enumerate(rooms):
+        g.box(x, y, w, h, '=', '.', (('SNEW'[i % 4], w // 3),))
+    g.rect(40, 44, 30, 5, '#')
+    g.rect(52, 44, 6, 5, '.')
+    g.place(3, 3, 'S')
+    g.place(22, 30, 'T'); g.place(84, 66, 'T'); g.place(51, 11, 'T')
+    g.place(12, 62, 'C'); g.place(78, 20, 'C'); g.place(114, 52, 'C')
+    g.place(40, 74, 'P'); g.place(104, 9, 'P'); g.place(20, 10, 'P')
+    g.place(108, 40, 'V'); g.place(30, 48, 'V')
+    g.place(122, 6, 'E')
+    g.put(124, 85, 'G')
     return g
 
 
 def ark():
-    g = Grid('#', '#')
-    for y in (4, 13, 22, 31, 40, 49):
-        g.rect(2, y, 76, 5, '.')
-    for x in (6, 20, 34, 48, 62, 74):
-        g.rect(x, 4, 4, 50, '.')
-    g.rect(50, 1, 29, 3, '*')
-    g.rect(2, 1, 20, 3, '*')
-    for x, y in ((26, 6), (56, 24), (12, 42), (68, 33)):
-        g.rect(x, y, 4, 3, '=')
-    g.rect(2, 8, 3, 4, ',')
-    g.rect(40, 44, 8, 4, ',')
-    g.put(3, 5, 'S')
-    g.put(16, 14, 'T'); g.put(52, 6, 'T'); g.put(30, 50, 'T')
-    g.put(44, 23, 'V'); g.put(10, 41, 'V')
-    g.put(66, 14, 'E'); g.put(22, 32, 'E')
-    g.put(76, 51, 'G')
+    g = Grid('#', '#', floor='.,')
+    for y in range(5, H - 8, 12):
+        g.rect(2, y, W - 4, 6, '.')
+    for x in range(7, W - 8, 17):
+        g.rect(x, 5, 5, H - 12, '.')
+    g.rect(2, H - 6, W - 4, 4, '.')
+    g.rect(70, 1, 57, 4, '*')
+    g.rect(2, 1, 30, 4, '*')
+    for i in range(8):
+        g.rect(16 + i * 14, 8 + (i % 4) * 12, 5, 4, '=')
+    for i in range(6):
+        g.rect(10 + i * 20, 18 + (i % 3) * 24, 6, 5, ',')
+    g.place(4, 7, 'S')
+    g.place(26, 18, 'T'); g.place(86, 8, 'T'); g.place(50, 78, 'T')
+    g.place(70, 42, 'V'); g.place(18, 66, 'V')
+    g.place(108, 20, 'E'); g.place(38, 54, 'E')
+    g.put(124, 85, 'G')
     return g
 
 
 def gun_fortress():
-    g = Grid('.', '#')
-    for x, y, w, h in ((6, 4, 14, 10), (26, 4, 14, 10), (46, 4, 14, 10),
-                       (6, 20, 14, 10), (26, 20, 14, 10), (46, 20, 14, 10),
-                       (6, 36, 14, 10), (26, 36, 14, 10), (46, 36, 14, 10),
-                       (64, 8, 13, 14), (64, 30, 13, 14)):
-        g.box(x, y, w, h, '#', '.', (('S', 6),))
-    g.rect(2, 48, 50, 4, '!')
-    g.rect(22, 16, 32, 2, '=')
-    g.rect(22, 32, 32, 2, '=')
-    g.rect(2, 2, 4, 3, '.')
-    g.put(2, 2, 'S')
-    g.put(12, 9, 'C'); g.put(32, 9, 'C'); g.put(12, 25, 'C'); g.put(70, 15, 'C')
-    g.put(52, 25, 'T'); g.put(70, 37, 'T'); g.put(32, 41, 'T')
-    g.put(52, 9, 'V'); g.put(12, 41, 'V')
-    g.put(52, 41, 'E')
-    g.put(77, 52, 'G')
+    g = Grid('.', '#', floor='.!')
+    for by in range(4, H - 14, 18):
+        for bx in range(6, W - 20, 22):
+            g.box(bx, by, 18, 13, '#', '.', (('S', 8),))
+    g.box(W - 20, 10, 17, 20, '#', '.', (('W', 8),))
+    g.box(W - 20, 44, 17, 20, '#', '.', (('W', 8),))
+    g.rect(2, H - 8, 70, 5, '!')
+    # pipe runs sit in the gaps between room bands, in segments - a solid
+    # run here lands exactly on the rooms' door rows and seals them shut
+    for i in range(4):
+        for seg in range(3):
+            g.rect(30 + seg * 22, 19 + i * 18, 13, 2, '=')
+    g.rect(2, 2, 5, 4, '.')
+    g.place(3, 3, 'S')
+    g.place(16, 10, 'C'); g.place(60, 10, 'C'); g.place(16, 46, 'C'); g.place(112, 18, 'C')
+    g.place(82, 46, 'T'); g.place(112, 54, 'T'); g.place(60, 64, 'T')
+    g.place(82, 10, 'V'); g.place(16, 64, 'V')
+    g.place(38, 46, 'E')
+    g.put(124, 85, 'G')
     return g
 
 
 def black_comet():
-    g = Grid('.', '#')
-    for x, y in ((10, 6), (34, 10), (20, 30), (56, 36), (30, 46), (64, 16),
-                 (46, 22), (8, 44)):
-        g.rect(x, y, 7, 4, ',')
-    for x, y, w, h in ((14, 4, 13, 10), (44, 4, 14, 10), (8, 20, 14, 12),
-                       (34, 22, 16, 12), (60, 26, 13, 10), (24, 40, 15, 12),
-                       (54, 44, 14, 10)):
-        g.box(x, y, w, h, '#', '.', (('S', 6),))
-    g.put(2, 2, 'S')
-    for x, y in ((20, 8), (50, 8), (14, 26), (41, 28), (66, 31), (31, 46),
-                 (60, 48), (72, 6)):
-        g.put(x, y, 'P')
-    g.put(40, 16, 'V'); g.put(70, 42, 'V')
-    g.put(76, 4, 'E'); g.put(3, 53, 'E')
-    g.put(76, 52, 'G')
+    g = Grid('.', '#', floor='.,')
+    for i in range(18):
+        g.rect(8 + (i * 13) % (W - 20), 6 + (i * 19) % (H - 14), 8, 5, ',')
+    chambers = [(20, 6, 20, 14), (66, 6, 22, 14), (10, 30, 20, 17),
+                (50, 32, 24, 18), (92, 38, 20, 15), (34, 60, 22, 18),
+                (78, 66, 22, 15), (104, 8, 18, 14)]
+    for i, (x, y, w, h) in enumerate(chambers):
+        g.box(x, y, w, h, '#', '.', (('SNEW'[i % 4], w // 3),))
+    g.place(3, 3, 'S')
+    for i, (x, y) in enumerate(((28, 12), (76, 12), (18, 38), (60, 40),
+                                (100, 45), (44, 68), (88, 72), (112, 14))):
+        g.place(x, y, 'P')
+    g.place(62, 24, 'V'); g.place(110, 66, 'V')
+    g.place(122, 5, 'E'); g.place(4, 84, 'E')
+    g.put(124, 85, 'G')
     return g
 
 
@@ -239,7 +279,7 @@ def main():
                         for i in range(0, 2):
                             gx, gy = x + i, y + j
                             if 0 < gx < W - 1 and 0 < gy < H - 1 and grid.g[gy][gx] != 'G':
-                                grid.g[gy][gx] = grid.fill
+                                grid.g[gy][gx] = grid.floor[0]
         rows = grid.rows()
         assert len(rows) == H and all(len(r) == W for r in rows), name
         ok, missing = reachable(rows, solid, 'TCPEGV')
