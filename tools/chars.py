@@ -220,7 +220,7 @@ def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
 # and simpler set - two thirds the height, three quills, and face parts
 # reduced to what still reads at that size.
 # --------------------------------------------------------------------------
-OW_W, OW_H = 26, 30
+OW_W, OW_H = 34, 30
 OW_GROUND = 29
 
 EYE_S = [
@@ -240,16 +240,26 @@ MUZZLE_S = [
 
 
 def _flame(cv, x, y, size=1.0, back=-1):
-    """The Air Shoes' rocket flame - red core, orange body, gold tip."""
-    cv.taper_line(x, y, x + back * 4.4 * size, y + 0.6, 1.9 * size, 0.7, 'r')
-    cv.taper_line(x, y, x + back * 3.4 * size, y + 0.4, 1.4 * size, 0.6, 'o')
-    cv.taper_line(x, y, x + back * 2.0 * size, y + 0.2, 0.9 * size, 0.5, 'O2')
+    """The Air Shoes' jet wash - kept flat and swept back so it reads as a
+    skater's spray rather than a torch strapped to each boot."""
+    cv.taper_line(x, y, x + back * 4.0 * size, y - 0.2, 1.1 * size, 0.5, 'r')
+    cv.taper_line(x, y, x + back * 2.8 * size, y - 0.1, 0.8 * size, 0.5, 'o')
+    cv.px(x + back * 1.2 * size, y, 'O2')
+
+
+def _glide_trail(cv, x, y, phase=0.0, width=9):
+    """Ground-level speed streaks left behind the shoes."""
+    for i in range(3):
+        off = (i * 3 + phase * 3) % 9
+        ln = width - i * 2
+        cv.line(x - off, y + i, x - off - ln, y + i, 'c' if i == 1 else 'w')
 
 
 def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
-               length=6.5, stride=4.0, flame=0.0):
+               length=6.5, stride=4.0, flame=0.0, glide=False):
     swing = math.sin(phase)
-    lift = max(0.0, math.cos(phase)) * 2.0
+    # a running leg lifts; a skating leg stays on the floor and slides out
+    lift = 0.0 if glide else max(0.0, math.cos(phase)) * 2.0
     fx = hx + swing * stride
     fy = hy + length - lift
     cv.taper_line(hx, hy, fx, fy - 1.0, 1.7, 1.3, fur)
@@ -257,8 +267,8 @@ def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
     cv.ellipse(fx + 1.4, fy - 0.6, 1.6, 1.1, accent)
     cv.rect(fx - 2.4, fy + 0.7, 6, 1, 'W')
     if flame > 0:
-        # the trailing foot burns hardest; the pushing one only sputters
-        _flame(cv, fx - 2.6, fy + 0.2, flame)
+        # low, swept-back jet wash rather than a torch: it hugs the ground
+        _flame(cv, fx - 2.8, fy + 0.1, flame)
 
 
 # Front view: both eyes at once, irises turned inward the way the source
@@ -284,21 +294,21 @@ def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=Fals
     `wide` spreads the limbs for the front and back views, where both of
     each are visible; the side view stacks them instead.
     """
-    ln = 5.8 if skate else 6.5
+    ln = 6.3 if skate else 6.5
     st = 5.6 if skate else 4.0
     # flame strength follows each foot through the cycle
     fa = (0.5 + 0.5 * math.cos(leg_a)) * 1.15 if skate else 0.0
     fb = (0.5 + 0.5 * math.cos(leg_b)) * 1.0 if skate else 0.0
     if wide:
-        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, fb)
-        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, fa)
+        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, fb, skate)
+        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, fa, skate)
         cv.taper_line(tx - 4.0, ty - 1, tx - 4.8, ty + 3.6, 1.4, 1.1, 'f')
         cv.circle(tx - 4.8, ty + 4.4, 1.5, 'w')
         cv.taper_line(tx + 4.0, ty - 1, tx + 4.8, ty + 3.6, 1.5, 1.2, 'F')
         cv.circle(tx + 4.8, ty + 4.4, 1.6, 'W')
     else:
-        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r', ln, st, fb)
-        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C', ln, st, fa)
+        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r', ln, st, fb, skate)
+        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C', ln, st, fa, skate)
         cv.taper_line(tx + 0.6, ty - 1, tx - 1.4, ty + 4, 1.4, 1.1, 'f')
         cv.taper_line(tx + 2.2, ty - 1.2, tx + 2.2 + arm_swing * 3.0, ty + 4.0, 1.5, 1.2, 'F')
         cv.circle(tx + 2.2 + arm_swing * 3.0, ty + 4.6, 1.6, 'W')
@@ -306,24 +316,24 @@ def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=Fals
         cv.px(tx - 3.4, ty + 1, 'R') if wide else None
 
 
-def _ow_side(cv, kind, pose, ang, striped):
+def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
     bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
     if pose == 'skate':
-        # crouched forward over the Air Shoes, riding low
-        hx, hy = 16.6, 10.4 - abs(math.sin(ang)) * 0.6
-        tx, ty = 12.4, 18.2
-        hip = 21.6
+        # leaned forward over the Air Shoes, riding low and level - the
+        # body barely rises, which is what separates a glide from a run
+        hx, hy = 20.8, 10.6 - abs(math.sin(ang)) * 0.25
+        tx, ty = 16.2, 18.0
+        hip = 20.8
     else:
-        hx, hy = 15.0, 8.6 + bob
-        tx, ty = 13.2, 17.0 + bob * 0.6
+        hx, hy = 19.0, 8.6 + bob
+        tx, ty = 17.2, 17.0 + bob * 0.6
         hip = 21.0 + bob * 0.5
 
     if pose == 'walk':
         leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi)
     elif pose == 'skate':
-        # a real push/glide cycle: the feet alternate, one pushing back
-        # while the other glides forward
-        leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi) * 0.8
+        # the feet alternate push and glide, but neither leaves the ground
+        leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi) * 0.55
     else:
         leg_a, leg_b, arm = 0.5, -0.5, 0.35
 
@@ -340,6 +350,8 @@ def _ow_side(cv, kind, pose, ang, striped):
         _quill(cv, hx + dx, hy + dy, deg - swept, ln, w0, 0.7, stripe=striped)
     cv.taper_line(tx - 3, hip - 2, tx - 6, hip - 4, 1.4, 0.5, 'F')
 
+    if pose == 'skate':
+        _glide_trail(cv, 14, 26, t_phase, 7)
     _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False, pose == 'skate')
 
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
@@ -352,12 +364,12 @@ def _ow_side(cv, kind, pose, ang, striped):
 
 
 
-def _ow_front(cv, kind, pose, ang, striped, back):
+def _ow_front(cv, kind, pose, ang, striped, back, t_phase=0.0):
     """Front (walking toward the camera) or back (walking away)."""
     bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
-    hx, hy = 13.0, 9.0 + bob + (1.0 if pose == 'skate' else 0.0)
-    tx, ty = 13.0, 17.2 + bob * 0.6
-    hip = 20.6 + bob * 0.5
+    hx, hy = 17.0, 9.0 + bob + (1.0 if pose == 'skate' else 0.0)
+    tx, ty = 17.0, 17.2 + bob * 0.6
+    hip = 20.2 + bob * 0.5
 
     if pose == 'walk':
         leg_a, leg_b = ang, ang + math.pi
@@ -382,6 +394,9 @@ def _ow_front(cv, kind, pose, ang, striped, back):
                         hy - 2.8 + i * 2.2 + math.sin(a) * (ln - i * 0.6 - 1.4), 'R')
     _quill(cv, hx, hy - 3.8, 270, 3.0, 1.9, 0.8)
 
+    if pose == 'skate':
+        _glide_trail(cv, hx - 4, 26, t_phase, 5)
+        _glide_trail(cv, hx + 9, 26, t_phase + 0.5, 5)
     _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True, pose == 'skate')
     cv.ellipse(tx, ty - 1.0, 2.4, 2.6, 'w' if back else 'W')      # chest / back fur
 
@@ -415,9 +430,9 @@ def hedgehog_small(kind='shadow', pose='idle', t=0.0, facing='side'):
     ang = t * math.pi * 2.0
     striped = (kind == 'shadow')
     if facing == 'side':
-        _ow_side(cv, kind, pose, ang, striped)
+        _ow_side(cv, kind, pose, ang, striped, t)
     else:
-        _ow_front(cv, kind, pose, ang, striped, facing == 'up')
+        _ow_front(cv, kind, pose, ang, striped, facing == 'up', t)
     cv.outline('O')
     cv.shade('F', 'f', 'H')
     cv.shade('M', 'm')

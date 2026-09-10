@@ -190,6 +190,7 @@
     seenIntro: {},
     currentMap: 'westopolis',
     superForm: false,
+    lastSave: '',     // which save pillar is lit
 
     newRun: function () {
       this.lv = 1; this.exp = 0;
@@ -203,6 +204,7 @@
       this.seenIntro = {};
       this.currentMap = 'westopolis';
       this.superForm = false;
+      this.lastSave = '';
       SH.Story.reset();
     },
 
@@ -241,7 +243,7 @@
             tp: this.tp, atk: this.atk, def: this.def, rings: this.rings,
             items: this.items, emeralds: this.emeralds,
             stageProgress: this.stageProgress, seenIntro: this.seenIntro,
-            currentMap: this.currentMap
+            currentMap: this.currentMap, lastSave: this.lastSave
           },
           story: SH.Story.save()
         }));
@@ -264,6 +266,7 @@
       this.stageProgress = r.stageProgress || {};
       this.seenIntro = r.seenIntro || {};
       this.currentMap = r.currentMap || 'westopolis';
+      this.lastSave = r.lastSave || '';
       SH.Story.load(d.story);
       return true;
     },

@@ -211,21 +211,64 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     g.clearRect(0, 0, s.fw, s.fh);
     g.drawImage(s.img, sx, sy, s.fw, s.fh, 0, 0, s.fw, s.fh);
     const d = g.getImageData(0, 0, s.fw, s.fh).data;
+    // the jet wash is deliberately small now that it reads as a glide
+    // rather than a torch, so count any warm pixel, not just the brightest
     let warm = 0;
     for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] > 128 && d[i] > 200 && d[i + 1] > 90 && d[i + 2] < 90) warm++;
+      if (d[i + 3] > 128 && d[i] > 130 && d[i] - d[i + 2] > 80) warm++;
     }
     return { count: frames.length, a: hash(frames[0]), b: hash(frames[2]), warm: warm };
   });
   check('skate is a four-frame cycle', skate.count === 4);
   check('opposite skate frames differ (feet alternate)', skate.a !== skate.b);
-  check('skate frames show a red/orange flame', skate.warm >= 6);
+  check('skate frames show a red/orange jet wash', skate.warm >= 3);
 
-  /* ---- maps are bigger than one screen in both directions ------------ */
-  const mapSize = await page.evaluate(() =>
-    SH.MAP_ORDER.map(id => { const m = SH.buildMap(id); return [m.w, m.h]; }));
-  check('every map is at least 48x32 tiles',
-    mapSize.every(s => s[0] >= 48 && s[1] >= 32));
+  /* ---- maps, the big door and the save pillars ----------------------- */
+  const world = await page.evaluate(() => {
+    return SH.MAP_ORDER.map(id => {
+      const m = SH.buildMap(id);
+      const c = {};
+      m.objects.forEach(o => { c[o.kind] = (c[o.kind] || 0) + 1; });
+      return { id: id, w: m.w, h: m.h, saves: c.save || 0, gates: c.gate || 0 };
+    });
+  });
+  check('every map is at least 80x56 tiles',
+    world.every(s => s.w >= 80 && s.h >= 56));
+  check('every map has an exit and two save pillars',
+    world.every(s => s.gates === 1 && s.saves === 2));
+
+  const door = await page.evaluate(() => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const g = o.map.objects.filter(x => x.kind === 'gate')[0];
+    const blocked = [];
+    for (let j = -2; j <= 0; j++) {
+      for (let i = 0; i <= 1; i++) {
+        blocked.push(o.solidAt((g.tx + i) * 16 + 8, (g.ty + j) * 16 + 8));
+      }
+    }
+    o.gateOpen = true;
+    const openNow = o.solidAt(g.tx * 16 + 8, g.ty * 16 + 8);
+    o.gateOpen = false;
+    const sheet = SH.Assets.sheet('door');
+    return { blocked: blocked, openNow: openNow, fw: sheet.fw, fh: sheet.fh };
+  });
+  check('the closed door blocks its whole 2x3 footprint',
+    door.blocked.length === 6 && door.blocked.every(Boolean) && door.openNow === false);
+  check('the door sprite is two tiles wide and three tall',
+    door.fw === 32 && door.fh === 48);
+
+  const saved = await page.evaluate(() => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const sp = o.map.objects.filter(x => x.kind === 'save')[0];
+    SH.Game.hp = 5;
+    SH.Game.lastSave = '';
+    o.player.x = sp.x; o.player.y = sp.y;
+    o.interact();
+    return { lastSave: SH.Game.lastSave, hp: SH.Game.hp,
+             stored: !!localStorage.getItem('shadow_the_hedgehog_16bit_v1') };
+  });
+  check('a save pillar records progress and restores HP',
+    saved.lastSave !== '' && saved.hp > 5 && saved.stored);
 
   /* ---- encounters are paced for the faster player -------------------- */
   const rates = await page.evaluate(() =>
@@ -257,6 +300,26 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('NORMAL objective unlocks the gate',
     await page.evaluate(() => SH.scenes[0].gateOpen && SH.scenes[0].firstCompleted === 'normal'));
   await shot('04_gate_open');
+  /* stand at the exit and at a save pillar so both props are in frame */
+  await page.evaluate(() => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const g = o.map.objects.filter(x => x.kind === 'gate')[0];
+    o.player.x = g.x - 40; o.player.y = g.y; o.player.dir = 'side';
+    o.gateOpen = false;
+    o.titleT = 0; o.noticeT = 0;
+    SH.Tips.clear();
+  });
+  await page.waitForTimeout(400);
+  await shot('04b_door_locked');
+  await page.evaluate(() => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const sp = o.map.objects.filter(x => x.kind === 'save')[0];
+    o.player.x = sp.x - 26; o.player.y = sp.y + 6;
+    o.titleT = 0; o.noticeT = 0;          // let the stage card clear first
+    SH.Tips.clear();
+  });
+  await page.waitForTimeout(400);
+  await shot('04c_savepoint');
 
   await page.evaluate(() => { SH.scenes[0].progress().killedAnyone = true; });
   check('a kill invalidates the pacifist objective',
@@ -331,6 +394,35 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     b.bar.x = 0.05;
   });
   await page.waitForTimeout(250);
+  await page.evaluate(() => {
+    const b = SH.scenes[SH.scenes.length - 1];
+    b.state = 'menu'; SH.Game.tp = 100;
+    b.openActs(b.enemies[0]);
+  });
+  await page.waitForTimeout(200);
+  await shot('11b_act_list');
+  await page.evaluate(() => {
+    const b = SH.scenes[SH.scenes.length - 1];
+    b.doSpear();
+    for (let i = 0; i < 26; i++) b.update(1 / 60);
+  });
+  await page.waitForTimeout(60);
+  await shot('11c_chaos_spear');
+  await page.evaluate(() => {
+    const b = SH.scenes[SH.scenes.length - 1];
+    b.state = 'menu'; SH.Game.tp = 100;
+    b.doBlast();
+    for (let i = 0; i < 30; i++) b.update(1 / 60);
+  });
+  await page.waitForTimeout(60);
+  await shot('11d_chaos_blast');
+  await page.evaluate(() => {
+    const b = SH.scenes[SH.scenes.length - 1];
+    b.state = 'menu';
+    b.startAttackBar(b.enemies[0]);
+    b.bar.x = 0.05;
+  });
+  await page.waitForTimeout(120);
   await shot('12_attack_bar');
   const shotState = await page.evaluate(() => {
     const b = SH.scenes[SH.scenes.length - 1];
@@ -353,6 +445,39 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('the battle sheet has a shoot frame', gunshot.frames.includes('shoot'));
   check('the shot lands and damages the target',
     gunshot.resolved === true && gunshot.hp < 34);
+
+  /* ---- the ACT list has to stay inside its panel ---------------------- */
+  const actFit = await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier'], {});
+    SH.Game.tp = 100;
+    b.openActs(b.enemies[0]);
+    const m = b.menu;
+    const rows = Math.ceil(m.items.length / m.columns);
+    const lastY = m.y + (rows - 1) * m.lh;
+    const lastX = m.x + (m.columns - 1) * m.width;
+    return { count: m.items.length, columns: m.columns,
+             bottom: lastY + m.size, right: lastX + 120, descY: m.descY };
+  });
+  /* the panel runs y 130..212 and the button row starts at 216 */
+  check('the ACT list fits inside its panel',
+    actFit.bottom <= 210 && actFit.descY <= 210 && actFit.right <= 312);
+  check('the ACT list uses two columns now that Chaos moves are in it',
+    actFit.count >= 6 && actFit.columns === 2);
+
+  /* ---- soundtrack --------------------------------------------------- */
+  const music = await page.evaluate(() => {
+    const names = ['title', 'city', 'ark', 'comet', 'battle', 'boss', 'last',
+                   'ending_dark', 'ending_hero', 'ending_true'];
+    const out = {};
+    names.forEach(n => {
+      try { SH.Audio.play(n); out[n] = SH.Audio.current() === n; }
+      catch (e) { out[n] = 'ERR ' + e.message; }
+    });
+    SH.Audio.stop();
+    return out;
+  });
+  check('every track plays without error',
+    Object.keys(music).length === 10 && Object.values(music).every(v => v === true));
 
   /* ---- chaos sound effects all exist --------------------------------- */
   const sfx = await page.evaluate(() => {
@@ -392,12 +517,20 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     const labels = b.menu.items.map(i => i.label);
     const before = b.enemies.map(e => e.hp);
     b.doBlast();
+    // the damage now lands with the shockwave, so run the effect out and
+    // collect the burst kinds as they appear (they expire on their own)
+    const seen = {};
+    for (let i = 0; i < 200 && b.state === 'chaosfx'; i++) {
+      b.bursts.forEach(x => { seen[x.kind] = true; });
+      b.update(1 / 60);
+    }
     const after = b.enemies.map(e => e.hp);
     b.openMercy();
     const mercy = b.menu.items.map(i => i.label);
     return {
       actLabels: labels, mercyLabels: mercy, tp: SH.Game.tp,
-      dealt: before.map((h, i) => h - after[i])
+      dealt: before.map((h, i) => h - after[i]),
+      burstKinds: Object.keys(seen)
     };
   });
   check('ACT lists 카오스 블래스트, not 카오스 컨트롤',
@@ -408,6 +541,24 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('Chaos Blast spends 100 TP', chaos.tp === 0);
   check('Chaos Blast hits every enemy hard',
     chaos.dealt.length === 2 && chaos.dealt.every(d => d >= 30));
+  check('Chaos Blast plays a detonation before it lands',
+    chaos.burstKinds.indexOf('ring') >= 0 && chaos.burstKinds.indexOf('charge') >= 0);
+
+  /* ---- Chaos Spear throws real lances -------------------------------- */
+  const spear = await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier', 'black_warrior'], {});
+    SH.Game.tp = 40; SH.Game.atk = 11;
+    const before = b.enemies.map(e => e.hp);
+    b.doSpear();
+    const inFlight = b.spears.length;
+    const staggered = b.spears.length > 1 && b.spears[0].t !== b.spears[1].t;
+    for (let i = 0; i < 300 && b.state === 'chaosfx'; i++) b.update(1 / 60);
+    const after = b.enemies.map(e => e.hp);
+    return { inFlight, staggered, dealt: before.map((h, i) => h - after[i]) };
+  });
+  check('Chaos Spear throws one lance per target',
+    spear.inFlight === 2 && spear.staggered === true);
+  check('every lance lands its damage', spear.dealt.every(d => d > 0));
 
   /* ---- the time freeze survives the message that announces it -------- */
   const freeze = await page.evaluate(async () => {

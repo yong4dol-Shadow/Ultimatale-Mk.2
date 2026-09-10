@@ -120,6 +120,63 @@ def blade():
     return cv
 
 
+# ---- large props --------------------------------------------------------
+def exit_door(open_):
+    """The stage exit: two tiles wide, three tall, so it cannot be mistaken
+    for scenery the way the old single-tile gate could."""
+    cv = Canvas(32, 48)
+    frame = 'g' if open_ else 'r'
+    cv.rect(0, 0, 32, 48, '3')                       # housing
+    cv.rect(2, 2, 28, 44, '2')
+    cv.rect_out(0, 0, 32, 48, '1')
+    for i in range(3):                               # hazard chevrons
+        cv.poly([(4, 6 + i * 14), (10, 12 + i * 14), (4, 18 + i * 14)], frame)
+        cv.poly([(28, 6 + i * 14), (22, 12 + i * 14), (28, 18 + i * 14)], frame)
+    if open_:
+        cv.rect(11, 4, 10, 40, '0')                  # the way through
+        for j in range(5):
+            cv.rect(11, 6 + j * 8, 10, 2, 'C')
+        cv.rect(10, 4, 1, 40, 'g')
+        cv.rect(21, 4, 1, 40, 'g')
+    else:
+        cv.rect(6, 4, 20, 40, '4')                   # shutter
+        for j in range(0, 40, 5):
+            cv.rect(6, 4 + j, 20, 1, '2')
+        cv.rect(13, 18, 6, 10, 'y')                  # big lock
+        cv.rect(15, 22, 2, 5, '1')
+        cv.ellipse(16, 18, 4.5, 4.5, 'y')
+        cv.ellipse(16, 18, 2.6, 2.6, '4')
+        cv.rect(6, 4, 20, 1, 'r')
+        cv.rect(6, 43, 20, 1, 'r')
+    cv.rect(0, 46, 32, 2, '1')
+    return cv
+
+
+def save_point(lit):
+    """A save pillar. Deliberately unlike the mission terminals: taller,
+    a different silhouette, and a spinning ring on top."""
+    cv = Canvas(24, 36)
+    cv.rect(7, 12, 10, 20, '4')                      # column
+    cv.rect(8, 13, 8, 18, '3')
+    cv.rect(4, 30, 16, 5, '4')                       # base
+    cv.rect(5, 31, 14, 3, '5')
+    cv.rect(2, 34, 20, 2, '2')
+    for j in range(3):
+        cv.rect(8, 16 + j * 5, 8, 1, '5')
+    body = 'y' if lit else 'C'
+    glow = '8' if lit else 'c'
+    cv.ellipse(12, 8, 7.5, 7.5, body)                # ring
+    cv.ellipse(12, 8, 4.6, 4.6, '.')
+    cv.ellipse(12, 8, 3.0, 3.0, glow)
+    cv.px(9, 4, '8')
+    if lit:
+        for i in range(6):
+            a = i * 1.05
+            cv.px(12 + math.cos(a) * 10, 8 + math.sin(a) * 10, 'y')
+    cv.outline('0')
+    return cv
+
+
 # ---- menu icons ---------------------------------------------------------
 def icon_fight():
     cv = Canvas(16, 16)

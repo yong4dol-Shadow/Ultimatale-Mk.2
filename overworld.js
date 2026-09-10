@@ -124,7 +124,7 @@
   /* The whole overworld tutorial: four lines, once, on the first stage. */
   Overworld.prototype.openingTips = function () {
     SH.Tips.show('ow_move', '방향키로 이동한다.  X 를 누르고 있으면 스케이트로 가속.');
-    SH.Tips.show('ow_mission', '좌상단 미션 3개 중 하나만 달성하면 구역 봉쇄가 풀린다.');
+    SH.Tips.show('ow_mission', '미션을 하나라도 끝내야 출구 문이 열린다.  좌상단에 셋이 떠 있다.');
     SH.Tips.show('ow_act', '단말·상자·에메랄드 앞에서 Z 를 누르면 조사한다.');
     SH.Tips.show('ow_menu', 'C 로 메뉴와 설정. 이동 속도도 여기서 바꿀 수 있다.');
   };
@@ -146,7 +146,9 @@
     /* closed gate blocks the way through */
     for (var i = 0; i < this.map.objects.length; i++) {
       var o = this.map.objects[i];
-      if (o.kind === 'gate' && o.tx === tx && o.ty === ty && !this.gateOpen) return true;
+      /* the exit is a 2x3-tile door; the whole shutter blocks when locked */
+      if (o.kind === 'gate' && !this.gateOpen &&
+          tx >= o.tx && tx <= o.tx + 1 && ty >= o.ty - 2 && ty <= o.ty) return true;
       if ((o.kind === 'crate' || o.kind === 'pod') && o.alive && o.tx === tx && o.ty === ty) return true;
     }
     return false;
@@ -170,7 +172,7 @@
   Overworld.prototype.nearObject = function () {
     var p = this.player, best = null, bd = 24 * 24;
     this.map.objects.forEach(function (o) {
-      if (o.kind !== 'gate' && (o.used || !o.alive)) return;
+      if (o.kind !== 'gate' && o.kind !== 'save' && (o.used || !o.alive)) return;
       var dx = o.x - p.x, dy = o.y - p.y, d = dx * dx + dy * dy;
       if (d < bd) { bd = d; best = o; }
     });
@@ -223,9 +225,25 @@
       return;
     }
 
+    if (o.kind === 'save') {
+      var key = this.mapId + ':' + o.tx + ',' + o.ty;
+      SH.Game.lastSave = key;
+      SH.Game.hp = SH.Game.maxhp;
+      var ok = SH.Game.save();
+      SH.Audio.sfx('unlock');
+      SH.flash('#ffd23f', 0.2);
+      SH.Tips.show('ow_save', '세이브 포인트다.  여기서 저장하면 HP 도 전부 회복된다.');
+      this.box = new SH.Textbox([{
+        who: '섀도우', face: 'face_shadow',
+        text: ok ? '...기록했다. 체력도 돌아왔다.' : '기록에 실패했다. 브라우저 저장이 막혀 있다.'
+      }], { onDone: function () { self.box = null; } });
+      return;
+    }
+
     if (o.kind === 'gate') {
       if (!this.gateOpen) {
         SH.Audio.sfx('deny');
+        SH.Tips.show('ow_gate', '이 문은 미션을 하나라도 끝내야 열린다.  아래 셋 중 아무거나 달성하면 된다.');
         var lines = [{ text: '구역 봉쇄. 아래 미션 중 하나를 달성해야 통과할 수 있다.' }];
         lines.push({ text:
           '[DARK]   ' + this.def.mission.dark.text + '  (' + this.objectiveProgress('dark') + ')\n' +
@@ -369,14 +387,22 @@
       var x = o.x - 8 - cx, y = o.y - 8 - cy;
       if (x < -TS || y < -TS || x > SH.W || y > SH.H) return;
       if (o.kind !== 'gate' && !(o.used || !o.alive)) {
-        SH.groundShadow(o.x - cx, o.y - cy + 7, 6, 2.2, 0.34);
+        var big = o.kind === 'save';
+        SH.groundShadow(o.x - cx, o.y - cy + (big ? 9 : 7),
+                        big ? 9 : 6, big ? 3 : 2.2, 0.34);
       }
       if (o.kind === 'gate') {
-        SH.draw('tiles', SH.frameOf('tiles', self.gateOpen ? 'gate_open' : 'gate_locked', 0), x, y);
+        /* 32x48: two tiles wide, three tall, anchored on its bottom tile */
+        SH.draw('door', SH.frameOf('door', self.gateOpen ? 'open' : 'locked', 0),
+                o.tx * 16 - cx, (o.ty - 2) * 16 - cy);
         if (self.gateOpen) {
-          SH.draw('tiles', SH.frameOf('tiles', 'goal_ring', 0), x,
-                  y - 3 + Math.sin(SH.time * 3) * 1.5, { alpha: 0.9 });
+          SH.draw('tiles', SH.frameOf('tiles', 'goal_ring', 0), o.tx * 16 + 8 - cx,
+                  (o.ty - 1) * 16 - cy + Math.sin(SH.time * 3) * 1.5, { alpha: 0.9 });
         }
+      } else if (o.kind === 'save') {
+        var lit = SH.Game.lastSave === self.mapId + ':' + o.tx + ',' + o.ty;
+        SH.draw('savepoint', SH.frameOf('savepoint', lit ? 'lit' : 'idle', 0),
+                o.x - 12 - cx, o.y - 26 - cy + Math.sin(SH.time * 2 + o.tx) * 1.2);
       } else if (o.kind === 'terminal') {
         SH.draw('tiles', SH.frameOf('tiles', o.used ? 'terminal_on' : 'terminal_off', 0), x, y);
       } else if (o.kind === 'crate') {

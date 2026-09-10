@@ -192,6 +192,12 @@ def build():
         add('graze%d' % i, U.graze(i))
     emit('hud', hud, U.UI_PAL, cols=8, frame_names=hud_names, edge_check=False)
 
+    # ---- large map props ------------------------------------------------
+    emit('door', [U.exit_door(False), U.exit_door(True)], U.UI_PAL,
+         frame_names={'locked': [0], 'open': [1]}, edge_check=False)
+    emit('savepoint', [U.save_point(False), U.save_point(True)], U.UI_PAL,
+         frame_names={'idle': [0], 'lit': [1]}, edge_check=False)
+
     # ---- projectiles (each its own size) --------------------------------
     for nm, fn in (('p_bullet', U.bullet_small), ('p_gun', U.bullet_gun),
                    ('p_spear', U.chaos_spear), ('p_orb', U.alien_orb),

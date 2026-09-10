@@ -262,6 +262,9 @@
     this.tpFlash = 0;
     this.tracer = null;
     this.pendingShot = null;
+    this.pops = [];
+    this.bursts = [];
+    this.spears = [];
     this.anim = 0;
     this.shadowPose = 'idle';
     this.poseTimer = 0;
@@ -308,6 +311,22 @@
 
   Battle.prototype.addFx = function (sheet, x, y, frames, dur) {
     this.fx.push({ sheet: sheet, x: x, y: y, n: frames, t: 0, dur: dur || 0.3 });
+  };
+
+  /* Small text that drifts up and fades - what DELTARUNE puts next to the
+     soul every time a graze tops up TP. */
+  Battle.prototype.pop = function (text, x, y, col, size) {
+    this.pops.push({ text: text, x: x, y: y, col: col || '#7fdcff',
+                     size: size || 8, t: 0, dur: 0.7 });
+  };
+
+  /* Ring / shockwave / spark primitives the Chaos moves are built from. */
+  Battle.prototype.addBurst = function (o) {
+    this.bursts.push({
+      x: o.x, y: o.y, t: 0, dur: o.dur || 0.5, kind: o.kind || 'ring',
+      r0: o.r0 || 2, r1: o.r1 || 40, col: o.col || '#ffd23f',
+      col2: o.col2 || '#ffffff', n: o.n || 10
+    });
   };
 
   /* ---------- scene lifecycle ------------------------------------------ */
@@ -481,7 +500,7 @@
       var near = ddx < b.w / 2 + 12 && ddy < b.h / 2 + 12;
       var hit = ddx < b.w / 2 + 3 && ddy < b.h / 2 + 3;
       if (near && !hit) {
-        this.gainTp(22 * dt);
+        this.gainTp(22 * dt, this.soul);
         if (!b.grazed) {
           b.grazed = true;
           SH.Audio.sfx('graze');
@@ -511,7 +530,7 @@
         enabled: e.alive, value: i
       };
     });
-    this.menu = new SH.Menu(items, { x: 76, y: 146, lh: 16, size: 11 });
+    this.menu = new SH.Menu(items, { x: 60, y: 152, lh: 16, size: 11, descY: 200 });
     this.menu.i = this.firstLivingIndex();
     this.state = 'target';
     this.afterTarget = after;
@@ -525,16 +544,17 @@
     });
     var G = this.G();
     items.push({
-      label: '카오스 스피어  (TP 40)', color: '#7fdcff',
+      label: '카오스 스피어 (TP40)', color: '#7fdcff',
       enabled: G.tp >= 40, value: { kind: 'spear' },
       desc: '적 전체에게 카오스 에너지를 꽂는다.'
     });
     items.push({
-      label: '카오스 블래스트  (TP 100)', color: '#ff8a1f',
+      label: '카오스 블래스트 (TP100)', color: '#ff8a1f',
       enabled: G.tp >= 100, value: { kind: 'blast' },
       desc: '주변을 통째로 터뜨린다. 방어를 무시하는 최대 화력.'
     });
-    this.menu = new SH.Menu(items, { x: 76, y: 140, lh: 14, size: 10 });
+    this.menu = new SH.Menu(items, { x: 20, y: 150, lh: 16, size: 10,
+                                     columns: 2, width: 134, descY: 200 });
     this.state = 'acts';
     this.actTarget = e;
   };
@@ -548,7 +568,7 @@
       var it = SH.Items[key];
       return { label: it.name, value: i, desc: it.heal ? ('HP +' + it.heal) : ('TP +' + it.tp) };
     });
-    this.menu = new SH.Menu(items, { x: 76, y: 146, lh: 15, size: 11 });
+    this.menu = new SH.Menu(items, { x: 60, y: 152, lh: 15, size: 11, descY: 200 });
     this.state = 'items';
   };
 
@@ -562,7 +582,7 @@
         enabled: !this.isBoss && !this.enemies.some(function (e) { return e.def.noFlee; }),
         desc: '시공을 뛰어넘어 전장에서 이탈한다.' }
     ];
-    this.menu = new SH.Menu(items, { x: 76, y: 150, lh: 16, size: 11 });
+    this.menu = new SH.Menu(items, { x: 60, y: 154, lh: 16, size: 11, descY: 200 });
     this.state = 'mercy';
   };
 
@@ -596,7 +616,7 @@
       var mult = { PERFECT: 2.2, GREAT: 1.6, GOOD: 1.15 }[grade];
       var dmg = Math.max(1, Math.round((G.atk + SH.rand(-2, 2)) * mult - e.def_));
       self.hitEnemy(e, dmg);
-      self.gainTp(8);
+      self.gainTp(8, { x: e.x, y: GROUND - 40 });
       var lines = [{ text: grade + '!  ' + e.name + ' 에게 ' + dmg + ' 데미지.' }];
       if (!e.alive) lines.push({ text: e.def.onKill });
       self.say(lines, function () {
@@ -608,11 +628,21 @@
 
   /* TP is the whole point of the two Chaos moves, so call it out the first
      time each threshold is crossed. */
-  Battle.prototype.gainTp = function (n) {
+  Battle.prototype.gainTp = function (n, showAt) {
     var G = this.G();
     if (!G) return;
     var before = G.tp;
     G.tp = Math.min(G.maxtp, G.tp + n);
+    if (showAt) {
+      /* accumulate the trickle and pop a readable number, not +0.4 a frame */
+      this.tpDrip = (this.tpDrip || 0) + (G.tp - before);
+      if (this.tpDrip >= 1) {
+        var whole = Math.floor(this.tpDrip);
+        this.tpDrip -= whole;
+        this.pop('+' + whole + ' TP', showAt.x + SH.rand(-6, 6),
+                 showAt.y - 12 + SH.rand(-4, 4), '#7fdcff', 8);
+      }
+    }
     if (before < 40 && G.tp >= 40) {
       this.tpFlash = 1.0;
       SH.Tips.show('bt_tp40', 'TP 40!  ACT 목록에서 카오스 스피어(적 전체 관통)를 쏠 수 있다.');
@@ -642,46 +672,73 @@
     this.say(lines, function () { self.startEnemyTurn(); });
   };
 
+  /* Chaos Spear - golden energy lances thrown one after another. The
+     damage waits until each lance actually lands. */
   Battle.prototype.doSpear = function () {
     var G = this.G(), self = this;
     G.tp -= 40;
     SH.Audio.sfx('chaos');
-    SH.flash('#7fdcff', 0.28);
-    SH.shake(5, 0.3);
-    this.setPose('attack', 0.6);
-    var lines = [{ text: '카오스... 스피어!' }];
-    this.living().forEach(function (e) {
-      var dmg = Math.max(1, Math.round(G.atk * 1.5 - e.def_));
-      self.hitEnemy(e, dmg);
-      lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지.' });
-      if (!e.alive) lines.push({ text: e.def.onKill });
+    SH.flash('#ffe066', 0.3);
+    SH.shake(5, 0.35);
+    this.setPose('attack', 1.4);
+    this.state = 'chaosfx';
+    /* long enough for the last staggered lance to land */
+    this.fxTimer = 0.62 + this.living().length * 0.14;
+    /* charge glow at the hand before the throw */
+    this.addBurst({ x: 84, y: GROUND - 40, kind: 'charge', r0: 14, r1: 2,
+                    dur: 0.3, col: '#ffd23f', col2: '#ffffff' });
+
+    var targets = this.living();
+    this.spears = targets.map(function (e, i) {
+      return { x: 84, y: GROUND - 40, tx: e.x, ty: GROUND - 26,
+               t: -0.28 - i * 0.14, dur: 0.26, e: e, done: false };
     });
-    this.say(lines, function () {
-      if (!self.living().length) self.finish('win');
-      else self.startEnemyTurn();
-    });
+    this.pendingChaos = function () {
+      var lines = [{ text: '카오스... 스피어!' }];
+      targets.forEach(function (e) {
+        if (!e.alive) return;
+        var dmg = Math.max(1, Math.round(G.atk * 1.5 - e.def_));
+        self.hitEnemy(e, dmg);
+        lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지.' });
+        if (!e.alive) lines.push({ text: e.def.onKill });
+      });
+      self.say(lines, function () {
+        if (!self.living().length) self.finish('win');
+        else self.startEnemyTurn();
+      });
+    };
   };
 
   /* Chaos Blast - the big TP spend: hits everything and ignores DEF. */
+  /* Chaos Blast - a red detonation centred on Shadow that swallows the
+     whole field: implosion, shockwave rings, then the damage. */
   Battle.prototype.doBlast = function () {
     var G = this.G(), self = this;
     G.tp -= 100;
     SH.Audio.sfx('blast');
-    SH.flash('#ff8a1f', 0.5);
-    SH.shake(12, 0.8);
-    this.setPose('attack', 0.9);
-    var lines = [{ text: '카오스... 블래스트!!' }];
-    this.living().forEach(function (e) {
-      var dmg = Math.max(1, Math.round(G.atk * 3.5 + SH.rand(-3, 3)));
-      self.hitEnemy(e, dmg);
-      self.addFx('fx_boom', e.x, e.y - 24, 4, 0.5);
-      lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지!' });
-      if (!e.alive) lines.push({ text: e.def.onKill });
-    });
-    this.say(lines, function () {
-      if (!self.living().length) self.finish('win');
-      else self.startEnemyTurn();
-    });
+    this.setPose('attack', 1.6);
+    this.state = 'chaosfx';
+    this.fxTimer = 1.15;
+    this.blastAt = 0.42;                       // when the wave reaches them
+
+    /* pull in, then blow out */
+    this.addBurst({ x: 62, y: GROUND - 30, kind: 'charge', r0: 46, r1: 3,
+                    dur: 0.4, col: '#ff2d2d', col2: '#ffd23f' });
+    var targets = this.living();
+    this.pendingChaos = function () {
+      var lines = [{ text: '카오스... 블래스트!!' }];
+      targets.forEach(function (e) {
+        if (!e.alive) return;
+        var dmg = Math.max(1, Math.round(G.atk * 3.5 + SH.rand(-3, 3)));
+        self.hitEnemy(e, dmg);
+        lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지!' });
+        if (!e.alive) lines.push({ text: e.def.onKill });
+      });
+      self.say(lines, function () {
+        if (!self.living().length) self.finish('win');
+        else self.startEnemyTurn();
+      });
+    };
   };
 
   Battle.prototype.doSpare = function () {
@@ -716,6 +773,7 @@
   /* ---------- update ---------------------------------------------------- */
   Battle.prototype.update = function (dt) {
     var self = this, G = this.G();
+    if (this.spears === undefined) this.spears = [];
     this.anim += dt;
     this.introT += dt;
     if (this.poseTimer > 0) {
@@ -736,12 +794,60 @@
       this.fx[i].t += dt;
       if (this.fx[i].t >= this.fx[i].dur) this.fx.splice(i, 1);
     }
+    for (var pi = this.pops.length - 1; pi >= 0; pi--) {
+      this.pops[pi].t += dt;
+      if (this.pops[pi].t >= this.pops[pi].dur) this.pops.splice(pi, 1);
+    }
+    for (var bi = this.bursts.length - 1; bi >= 0; bi--) {
+      this.bursts[bi].t += dt;
+      if (this.bursts[bi].t >= this.bursts[bi].dur) this.bursts.splice(bi, 1);
+    }
 
     switch (this.state) {
 
       case 'message':
         if (this.msg) this.msg.update(dt);
         break;
+
+      case 'chaosfx': {
+        this.fxTimer -= dt;
+        var anyLanded = false;
+        this.spears.forEach(function (sp) {
+          sp.t += dt;
+          if (!sp.done && sp.t >= sp.dur) {
+            sp.done = true;
+            anyLanded = true;
+            self.addBurst({ x: sp.tx, y: sp.ty, kind: 'ring', r0: 3, r1: 22,
+                            dur: 0.3, col: '#ffd23f', col2: '#ffffff' });
+            self.addBurst({ x: sp.tx, y: sp.ty, kind: 'spark', n: 8, r1: 26,
+                            dur: 0.34, col: '#ffe066' });
+            SH.shake(4, 0.16);
+          }
+        });
+        if (anyLanded) SH.Audio.sfx('hit');
+        /* the blast's shockwave, fired once when the ring reaches the line */
+        if (this.blastAt !== undefined && this.fxTimer <= 1.15 - this.blastAt) {
+          this.blastAt = undefined;
+          SH.flash('#ff2d2d', 0.55);
+          SH.shake(14, 0.9);
+          this.addBurst({ x: 62, y: GROUND - 30, kind: 'ring', r0: 4, r1: 230,
+                          dur: 0.55, col: '#ff2d2d', col2: '#ffd23f' });
+          this.addBurst({ x: 62, y: GROUND - 30, kind: 'ring', r0: 2, r1: 170,
+                          dur: 0.42, col: '#ffffff', col2: '#ff8a1f' });
+          this.addBurst({ x: 62, y: GROUND - 30, kind: 'spark', n: 22, r1: 150,
+                          dur: 0.6, col: '#ff8a1f' });
+          this.living().forEach(function (e) {
+            self.addFx('fx_boom', e.x, GROUND - 26, 4, 0.5);
+          });
+        }
+        if (this.fxTimer <= 0) {
+          this.spears.length = 0;
+          var go2 = this.pendingChaos;
+          this.pendingChaos = null;
+          if (go2) go2();
+        }
+        break;
+      }
 
       case 'shooting': {
         var tr = this.tracer;
@@ -907,14 +1013,69 @@
       SH.drawFoot(e.sheet, fr, e.x + sx, GROUND - e.hover + float, op);
     });
 
+    /* rings, shockwaves and sparks */
+    this.bursts.forEach(function (b2) {
+      var k = b2.t / b2.dur;
+      SH.ctx.save();
+      SH.ctx.globalAlpha = 1 - k;
+      if (b2.kind === 'ring') {
+        var r = SH.lerp(b2.r0, b2.r1, k);
+        SH.ellipseFill(b2.x, b2.y, r, r * 0.66, b2.col);
+        SH.ctx.globalAlpha = (1 - k) * 0.9;
+        SH.ellipseFill(b2.x, b2.y, Math.max(0, r - 5), Math.max(0, r - 5) * 0.66, '#000');
+        SH.ctx.globalAlpha = (1 - k) * 0.8;
+        SH.ellipseFill(b2.x, b2.y, Math.max(0, r - 8), Math.max(0, r - 8) * 0.66, b2.col2);
+        SH.ctx.globalAlpha = (1 - k) * 0.75;
+        SH.ellipseFill(b2.x, b2.y, Math.max(0, r - 11), Math.max(0, r - 11) * 0.66, '#000');
+      } else if (b2.kind === 'charge') {
+        var cr = SH.lerp(b2.r0, b2.r1, k);
+        for (var q = 0; q < 8; q++) {
+          var a2 = q * 0.785 + k * 5;
+          SH.rect(b2.x + Math.cos(a2) * cr, b2.y + Math.sin(a2) * cr * 0.7, 3, 3,
+                  q % 2 ? b2.col : b2.col2);
+        }
+      } else {                                   /* spark */
+        for (var q2 = 0; q2 < b2.n; q2++) {
+          var a3 = q2 * (6.283 / b2.n) + b2.x;
+          var d2 = k * b2.r1;
+          SH.rect(b2.x + Math.cos(a3) * d2, b2.y + Math.sin(a3) * d2 * 0.7,
+                  2, 2, b2.col);
+        }
+      }
+      SH.ctx.restore();
+    });
+
+    /* Chaos Spear lances in flight */
+    this.spears.forEach(function (sp) {
+      if (sp.t < 0 || sp.done) return;
+      var k2 = SH.clamp(sp.t / sp.dur, 0, 1);
+      var sxp = SH.lerp(sp.x, sp.tx, k2), syp = SH.lerp(sp.y, sp.ty, k2);
+      var ang2 = Math.atan2(sp.ty - sp.y, sp.tx - sp.x);
+      for (var t2 = 0; t2 < 7; t2++) {            /* the lance and its trail */
+        var tx2 = sxp - Math.cos(ang2) * t2 * 4;
+        var ty2 = syp - Math.sin(ang2) * t2 * 4;
+        var w2 = 6 - t2 * 0.7;
+        SH.ctx.save();
+        SH.ctx.globalAlpha = 1 - t2 / 8;
+        SH.rect(tx2 - w2 / 2, ty2 - 1.5, w2, 3, t2 === 0 ? '#ffffff' : '#ffd23f');
+        SH.ctx.restore();
+      }
+      SH.rect(sxp + 3, syp - 1, 5, 2, '#ffffff');
+    });
+
     /* the tracer from Shadow's sidearm */
     if (this.tracer) {
       var tr = this.tracer, k = tr.t / tr.dur;
       var bx = SH.lerp(tr.x, tr.tx, k);
       var by = SH.lerp(tr.y, tr.ty, k) + (tr.miss ? -k * k * 26 : 0);
-      for (var q = 0; q < 4; q++) {
-        SH.rect(bx - q * 5, by + q * 0.4, 4, 2, q ? '#ffd23f' : '#ffffff');
-      }
+      /* a pistol round, not a cannon shell */
+      SH.rect(bx, by, 2, 2, '#ffffff');
+      SH.ctx.save();
+      SH.ctx.globalAlpha = 0.5;
+      SH.rect(bx - 5, by + 0.5, 4, 1, '#ffd23f');
+      SH.ctx.globalAlpha = 0.25;
+      SH.rect(bx - 10, by + 0.5, 5, 1, '#ffd23f');
+      SH.ctx.restore();
       if (k < 0.45) {                       /* muzzle flash at the barrel */
         var fa = 1 - k / 0.45;
         SH.ctx.save();
@@ -930,6 +1091,12 @@
       var i = Math.min(f2.n - 1, Math.floor(f2.t / f2.dur * f2.n));
       SH.drawC(f2.sheet, f2.sheet === 'hud' ? SH.frameOf('hud', 'graze0', 0) + i : i,
                f2.x, f2.y, {});
+    });
+
+    this.pops.forEach(function (p2) {
+      var k3 = p2.t / p2.dur;
+      SH.text(p2.text, p2.x, p2.y - k3 * 14,
+              { color: p2.col, size: p2.size, align: 'center', alpha: 1 - k3 * k3 });
     });
   };
 
@@ -1055,6 +1222,8 @@
       this.drawBox();
     } else if (this.state === 'attackbar') {
       this.drawAttackBar();
+    } else if (this.state === 'chaosfx') {
+      SH.panel(8, 130, 304, 82, { fill: '#000', border: '#f2f2f8', lw: 2 });
     } else if (this.state === 'shooting') {
       SH.panel(8, 130, 304, 82, { fill: '#000', border: '#f2f2f8', lw: 2 });
       SH.text('사격!', SH.W / 2, 162, { color: '#ffd23f', size: 12, bold: true, align: 'center' });
