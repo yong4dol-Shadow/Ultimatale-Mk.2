@@ -573,15 +573,21 @@
                    desc: a.mercy > 0 ? '자비 +' + a.mercy : (a.mercy < 0 ? '자비 -' + (-a.mercy) : '') });
     });
     var G = this.G();
+    /* The Chaos moves are the emeralds' power, so they stay locked until he
+       is holding one.  Before that the entries still show, greyed, with the
+       reason - a menu that silently lacks its two best options just reads as
+       a bug. */
+    var chaos = SH.Game.chaosUnlocked();
+    var need = '카오스 에메랄드를 손에 넣어야 쓸 수 있다.';
     items.push({
       label: '카오스 스피어 (TP40)', color: '#7fdcff',
-      enabled: G.tp >= 40, value: { kind: 'spear' },
-      desc: '적 전체를 관통한다.  방어를 절반만 계산한다.'
+      enabled: chaos && G.tp >= 40, value: { kind: 'spear' },
+      desc: chaos ? '적 전체를 관통한다.  방어를 절반만 계산한다.' : need
     });
     items.push({
       label: '카오스 블래스트 (TP100)', color: '#ff8a1f',
-      enabled: G.tp >= 100, value: { kind: 'blast' },
-      desc: '주변을 통째로 터뜨린다. 방어를 무시하는 최대 화력.'
+      enabled: chaos && G.tp >= 100, value: { kind: 'blast' },
+      desc: chaos ? '주변을 통째로 터뜨린다. 방어를 무시하는 최대 화력.' : need
     });
     this.menu = new SH.Menu(items, { x: 20, y: 150, lh: 16, size: 10,
                                      columns: 2, width: 134, descY: 200 });
@@ -609,8 +615,10 @@
       { label: 'SPARE', color: anySpareable ? '#7dff9b' : '#e2e2ec', value: 'spare',
         desc: anySpareable ? '지금이라면 놓아줄 수 있다.' : '아직 마음을 열지 않았다.' },
       { label: '카오스 컨트롤', color: '#c0ff3c', value: 'flee',
-        enabled: !this.isBoss && !this.enemies.some(function (e) { return e.def.noFlee; }),
-        desc: '시공을 뛰어넘어 전장에서 이탈한다.' }
+        enabled: SH.Game.chaosUnlocked() && !this.isBoss &&
+                 !this.enemies.some(function (e) { return e.def.noFlee; }),
+        desc: SH.Game.chaosUnlocked() ? '시공을 뛰어넘어 전장에서 이탈한다.'
+                                      : '카오스 에메랄드를 손에 넣어야 쓸 수 있다.' }
     ];
     this.menu = new SH.Menu(items, { x: 60, y: 154, lh: 16, size: 11, descY: 200 });
     this.state = 'mercy';
@@ -719,8 +727,12 @@
     var G = this.G(), self = this;
     G.tp -= 40;
     SH.Audio.sfx('chaos');
-    SH.flash('#ffe066', 0.3);
     SH.shake(5, 0.35);
+    /* the screen goes gold in two beats - a snap on the throw, then a second
+       one as the lances land, with the field lit between them */
+    SH.flash('#ffe066', 0.34);
+    this.goldT = 0;
+    this.goldHit = false;
     this.setPose('attack', 1.6);
     this.state = 'chaosfx';
     /* long enough for the last staggered lance to land and burn */
@@ -931,6 +943,10 @@
             sp.e.flash = 0.4;
             sp.e.shakeT = 0.35;
             SH.shake(6, 0.2);
+            if (!self.goldHit) {            /* one snap for the whole volley */
+              self.goldHit = true;
+              SH.flash('#fff3b0', 0.26);
+            }
           }
           if (!sp.done && sp.t >= sp.hitAt + sp.over) sp.done = true;
         });
@@ -951,6 +967,7 @@
           });
         }
         if (this.fxTimer <= 0) {
+          this.goldT = undefined;
           this.ctrlT = undefined;
           this.ctrlRipples = 0;
           this.afterImages = [];
@@ -1177,6 +1194,23 @@
       }
       SH.ctx.restore();
     });
+
+    /* while the volley is in the air the whole field is lit gold */
+    if (this.goldT !== undefined && this.state === 'chaosfx' && this.spears.length) {
+      SH.ctx.save();
+      SH.ctx.globalAlpha = 0.16 + 0.09 * Math.sin(this.anim * 22);
+      SH.rect(0, 17, SH.W, GROUND + 6 - 17, '#ffd23f');
+      SH.ctx.restore();
+      /* gold motes drifting up off the floor */
+      for (var gm = 0; gm < 14; gm++) {
+        var gx = (gm * 47 + ((this.anim * 26) | 0) * 13) % SH.W;
+        var gy = GROUND - ((this.anim * 40 + gm * 17) % 60);
+        SH.ctx.save();
+        SH.ctx.globalAlpha = 0.5;
+        SH.rect(gx, gy, 2, 2, gm % 3 ? '#ffd23f' : '#ffffff');
+        SH.ctx.restore();
+      }
+    }
 
     /* Chaos Spear lances in flight.  This used to be a 6x3 dash with a
        dotted tail, which at 320x240 read as a thrown pencil.  It is drawn

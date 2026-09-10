@@ -250,54 +250,61 @@ EYE_S = [
     '..OOO.',
 ]
 
-# The small build follows the same rule as the battle head, but it has half
-# the pixels to say it with: the tan stays INSIDE the skull circle and only
-# the black nose wedge steps outside it.  Letting the tan itself clear the
-# silhouette is what made the overworld sprite look snouted.
+# Laid out the way the reference sprite lays a head out: the muzzle sits
+# BELOW the eye, not level with it, and it is a real mass - a tan patch that
+# reaches the front of the skull.  Shrinking it to a few pixels to stop it
+# looking snouted just left a face with no mouth at all.
 #
-# It is also carried HIGH, level with the eye, and kept small.  A tall tan
-# mass hanging down the front of an eleven-pixel head reads as a mole's
-# snout no matter how far back it is tucked - the muzzle has to be small as
-# well as tucked.  And the nose is TWO pixels: at this scale that is enough
-# to break the silhouette by one pixel, which is all a Sonic-series nose
-# does.  Five pixels of nose on an eleven-pixel head is a beak.
+# The NOSE is the part that steps outside the circle.  It has to: black fur
+# behind it and black nose on top of it are the same colour, so a nose kept
+# inside the silhouette is invisible in profile - the only thing that can
+# show it is the outline breaking around it.  One column past the edge is
+# enough, and the `n` highlight on top keeps it from reading as a hole.
 MUZZLE_S = [
-    'MM...',
-    'MMMN.',
-    'MMMN.',
-    '.mM..',
+    '...MnN.',
+    '.MMMMNN',
+    'MMMMMMN',
+    '.mMMMm.',
 ]
 
 
 def _jet(cv, x, y, phase=0.0, back=-1, size=1.0):
-    """The Air Shoes' exhaust plume.
+    """The Air Shoes' exhaust: a short flame at the vent, then embers.
 
-    Shaped from the source art: the flame is widest at the vent, sweeps
-    back and LIFTS off the floor, and is layered orange -> gold -> white
-    core.  Two earlier versions were wrong in different ways - one fire
-    pinned to each foot read as burning shoes chasing the feet, and a
-    straight dark-red taper read as a red stick trailing the boot.  Drawing
-    it as blobs along a rising arc, with no red in it at all, is what makes
-    it read as thrust.
+    Every solid version of this read as a boot that had caught fire, however
+    it was shaped or coloured - a continuous mass of flame attached to a
+    shoe is a burning shoe.  So the solid part is kept short, right at the
+    vent, and everything behind it breaks into scattered orange specks that
+    drift back and up.  Scattered, it reads as exhaust.
     """
     puff = 0.85 + 0.30 * math.sin(phase * math.pi * 2)
 
     def plume(length, r0, rise, col):
-        n = 8
+        n = 6
         for i in range(n):
             k = i / (n - 1.0)
-            r = r0 * (1.0 - 0.70 * k)
-            # the rise is quadratic, so the base hugs the floor behind the
-            # heel and only the tail end curls upward
+            r = r0 * (1.0 - 0.68 * k)
             cv.ellipse(x + back * length * k, y - rise * k * k, r * 1.2, r, col)
 
-    plume(6.4 * size, 3.2 * size, 2.8 * size, 'o')                  # envelope
-    plume(4.5 * size * puff, 2.2 * size, 1.9 * size, 'O2')          # gold body
-    plume(2.0 * size * puff, 1.3 * size, 0.7 * size, 'S')           # white core
-    # a tongue licking off the tip, so the edge is not one smooth blob
-    tx, ty = x + back * 6.4 * size, y - 2.8 * size
-    cv.taper_line(tx, ty, tx + back * 1.6 * size * puff, ty - 1.8 * size * puff,
-                  1.5 * size, 0.5, 'o')
+    plume(2.4 * size, 2.4 * size, 1.0 * size, 'o')                  # envelope
+    plume(1.6 * size * puff, 1.6 * size, 0.7 * size, 'O2')          # gold body
+    plume(0.9 * size * puff, 1.0 * size, 0.3 * size, 'S')           # white core
+
+    # the tail, as embers rather than more flame
+    n = 9 if size > 0.6 else 5
+    for i in range(n):
+        k = 0.3 + 0.78 * (i / (n - 1.0))
+        d = 8.0 * size * k
+        wob = math.sin(phase * math.pi * 2 + i * 2.1) * 1.5 * size
+        ex = x + back * d
+        ey = y - 3.6 * size * k * k + wob
+        col = 'O2' if i % 3 == 0 else 'o'
+        if i < 2 and size > 0.6:
+            cv.ellipse(ex, ey, 1.1 * size, 0.9 * size, col)
+        else:
+            cv.px(ex, ey, col)
+            if size > 0.6 and i % 2 == 0:
+                cv.px(ex + back * 0.9, ey + 0.6, col)
 
 
 def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
@@ -382,11 +389,13 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
     skating, level = _skate_level(pose)
     bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
     if skating:
-        # leaned forward over the Air Shoes, riding low and level - the
-        # body barely rises, which is what separates a glide from a run
-        hx, hy = 20.8, 10.6 - abs(math.sin(ang)) * 0.25
-        tx, ty = 16.2, 18.0
-        hip = 20.8
+        # Leaned forward over the Air Shoes, riding low and level - the body
+        # barely rises, which is what separates a glide from a run.  The
+        # LEAN moves the torso forward with the head; pushing the head out
+        # on its own gave him a craned, turtle-necked posture.
+        hx, hy = 19.6, 10.8 - abs(math.sin(ang)) * 0.25
+        tx, ty = 17.0, 17.8
+        hip = 20.6
     else:
         hx, hy = 19.0, 8.6 + bob
         tx, ty = 17.2, 17.0 + bob * 0.6
@@ -425,7 +434,7 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
 
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
-    cv.stamp(MUZZLE_S, hx + 2.4, hy - 2.0)
+    cv.stamp(MUZZLE_S, hx + 0.4, hy + 0.2)
     cv.stamp(EYE_S, hx - 2.2, hy - 4.4, {'I': 'E'})
     if striped:
         cv.px(hx - 1.0, hy - 5.4, 'R')
@@ -494,12 +503,44 @@ def _ow_front(cv, kind, pose, ang, striped, back, t_phase=0.0):
 
 
 
+def _ow_spin(cv, kind, ang, striped, t_phase=0.0):
+    """The rolling ball, for the spin at full speed.
+
+    A curled hedgehog is a disc of quills, so the read comes from the blur
+    arcs sweeping round it rather than from any body part being legible -
+    at 34x30 there is no room to draw a tucked-up Shadow and have it be
+    anything but a smudge.
+    """
+    cx, cy = 18.0, 21.0
+    cv.circle(cx, cy, 6.0, 'F')
+    cv.circle(cx, cy, 3.9, 'f')
+    # quill blur: three arcs at 120 degrees, turning with the frame
+    for i in range(3):
+        a0 = ang + i * 2.094
+        for k in range(6):
+            a = a0 + k * 0.16
+            r = 6.0 - k * 0.14
+            cv.px(cx + math.cos(a) * r, cy + math.sin(a) * r,
+                  'R' if (striped and k < 3) else 'H')
+    # the gold rings catch the light as he turns
+    for i in range(2):
+        a = ang * 1.7 + i * 3.14
+        cv.px(cx + math.cos(a) * 2.9, cy + math.sin(a) * 2.9, 'Y')
+    # speed streaks trailing the ball
+    for i in range(3):
+        off = (i * 2 + t_phase * 4) % 6
+        cv.line(cx - 7 - off, cy - 3 + i * 3, cx - 10 - off, cy - 3 + i * 3, 'w')
+    _jet(cv, cx - 6.0, cy + 5.0, t_phase, -1, 0.5)
+
+
 def hedgehog_small(kind='shadow', pose='idle', t=0.0, facing='side'):
     """A compact overworld frame. `facing` is 'side', 'down' or 'up'."""
     cv = Canvas(OW_W, OW_H)
     ang = t * math.pi * 2.0
     striped = (kind == 'shadow')
-    if facing == 'side':
+    if pose == 'spin':
+        _ow_spin(cv, kind, ang, striped, t)
+    elif facing == 'side':
         _ow_side(cv, kind, pose, ang, striped, t)
     else:
         _ow_front(cv, kind, pose, ang, striped, facing == 'up', t)

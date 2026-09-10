@@ -225,32 +225,57 @@
     ]},
 
     /* random encounter - fast, urgent, keeps moving */
-    battle: { bpm: 172, ch: [
+    /* The regular battle theme runs 128 steps, not 64: at this tempo a
+       64-step loop comes round every eleven seconds and you hear the seam
+       long before the fight is over.  Eight bars, with the riff answering
+       itself, a lift onto C at bar five, a descending turnaround and drum
+       fills where the phrases join. */
+    battle: { bpm: 168, ch: [
       { kind: 'pulse', vol: 0.13, pat: P(
-        'a4 .  a4 .  c5 .  b4 .  a4 .  g4 .  e4 .  g4 . ' +
-        'a4 .  a4 .  c5 .  e5 .  d5 .  c5 .  b4 .  a4 . ' +
-        'f4 .  f4 .  a4 .  g4 .  f4 .  e4 .  c4 .  e4 . ' +
-        'g4 .  b4 .  d5 .  c5 .  b4 .  a4 .  g4 .  e4 . ') },
-      { kind: 'pulse25', vol: 0.08, pat: P(
-        'e4 .  e4 .  a4 .  g4 .  e4 .  d4 .  c4 .  d4 . ' +
-        'e4 .  e4 .  a4 .  c5 .  b4 .  a4 .  g4 .  e4 . ' +
-        'c4 .  c4 .  f4 .  e4 .  c4 .  b3 .  a3 .  b3 . ' +
-        'd4 .  g4 .  b4 .  a4 .  g4 .  e4 .  d4 .  b3 . ') },
-      { kind: 'pulse12', vol: 0.05, pat: P(
-        'a5 a5 .  .  e5 e5 .  .  a5 a5 .  .  c6 .  .  . ' +
-        'a5 a5 .  .  e5 e5 .  .  c6 c6 .  .  b5 .  .  . ' +
-        'f5 f5 .  .  c5 c5 .  .  f5 f5 .  .  a5 .  .  . ' +
-        'g5 g5 .  .  d5 d5 .  .  b5 b5 .  .  a5 .  .  . ') },
+        'a4  -   .   a4  .   c5  -   .   b4  .   a4  -   .   .   e4  .  ' +
+        'g4  -   .   g4  .   b4  -   .   a4  .   g4  -   .   e4  d4  .  ' +
+        'f4  -   .   f4  .   a4  -   .   g4  .   f4  -   .   .   c4  .  ' +
+        'e4  -   .   e4  .   g4  -   .   b4  -   a4  -   g4  -   -   .  ' +
+        'a4  -   c5  -   e5  -   .   e5  .   d5  -   c5  .   b4  -   .  ' +
+        'c5  -   e5  -   a5  -   .   a5  .   g5  -   e5  .   d5  -   .  ' +
+        'f5  -   e5  -   d5  -   c5  -   b4  -   a4  -   g4  -   e4  -  ' +
+        'a4  -   -   -   .   .   e4  .   a4  -   -   -   -   -   -   .  ') },
+      { kind: 'pulse25', vol: 0.07, pat: P(
+        '.   .   e4  .   .   .   a3  .   .   e4  .   .   c4  .   .   .  ' +
+        '.   .   d4  .   .   .   g3  .   .   d4  .   .   b3  .   .   .  ' +
+        '.   .   c4  .   .   .   f3  .   .   c4  .   .   a3  .   .   .  ' +
+        '.   .   b3  .   .   .   e3  .   .   .   e4  -   d4  -   -   .  ' +
+        'e4  -   .   .   a4  -   .   .   g4  -   .   .   e4  -   .   .  ' +
+        'a4  -   .   .   c5  -   .   .   b4  -   .   .   g4  -   .   .  ' +
+        'a4  -   g4  -   f4  -   e4  -   d4  -   c4  -   b3  -   a3  -  ' +
+        'e4  -   -   -   .   .   b3  .   e4  -   -   -   -   -   -   .  ') },
+      { kind: 'pulse12', vol: 0.045, pat: P(
+        'a5  e5  c5  e5  a5  e5  c5  e5  a5  e5  c5  e5  b5  e5  b4  e5 ' +
+        'g5  d5  b4  d5  g5  d5  b4  d5  g5  d5  b4  d5  a5  e5  a4  e5 ' +
+        'f5  c5  a4  c5  f5  c5  a4  c5  f5  c5  a4  c5  g5  d5  g4  d5 ' +
+        'e5  b4  g4  b4  e5  b4  g4  b4  e5  b4  e5  g5  b5  -   -   .  ' +
+        'a5  .   e5  .   c6  .   e5  .   a5  .   e5  .   b5  .   e5  .  ' +
+        'c6  .   a5  .   e6  .   a5  .   c6  .   a5  .   d6  .   a5  .  ' +
+        'f5  a5  c6  f6  e5  a5  c6  e6  d5  g5  b5  d6  c5  e5  g5  c6 ' +
+        'a5  -   -   -   .   .   e6  .   a5  -   -   -   -   -   -   .  ') },
       { kind: 'tri', vol: 0.24, pat: P(
-        'a1 a1 .  a1 a1 .  a1 .  a1 a2 .  a1 a1 .  a1 . ' +
-        'a1 a1 .  a1 a1 .  a1 .  e2 e2 .  e2 e2 .  e2 . ' +
-        'f1 f1 .  f1 f1 .  f1 .  f1 f2 .  f1 f1 .  f1 . ' +
-        'g1 g1 .  g1 g1 .  g1 .  g1 g2 .  g1 b1 b1 b1 b1 ') },
+        'a1  a1  a2  a1  a1  a1  a2  a1  a1  a1  a2  a1  e2  e2  e2  e2 ' +
+        'g1  g1  g2  g1  g1  g1  g2  g1  g1  g1  g2  g1  d2  d2  d2  d2 ' +
+        'f1  f1  f2  f1  f1  f1  f2  f1  f1  f1  f2  f1  c2  c2  c2  c2 ' +
+        'e1  e1  e2  e1  e1  e1  e2  e1  e1  e2  e1  e2  b1  b1  b1  b1 ' +
+        'a1  a1  a2  a1  e2  e2  a1  a1  a1  a1  a2  a1  e2  e2  e2  e2 ' +
+        'c2  c2  c1  c2  g1  g1  c2  c2  c2  c2  c1  c2  g1  g1  g1  g1 ' +
+        'f1  f1  f2  f1  e1  e1  e2  e1  d1  d1  d2  d1  c1  c1  c2  c1 ' +
+        'a1  a1  a2  a1  a1  a1  a2  a1  a1  a2  a1  a2  e2  e2  e2  e2 ') },
       { kind: 'noise', vol: 0.16, pat: P(
-        'k  h  k  h  s  h  k  h  k  h  k  h  s  h  k  s ' +
-        'k  h  k  h  s  h  k  h  k  h  k  h  s  k  s  k ' +
-        'k  h  k  h  s  h  k  h  k  h  k  h  s  h  k  s ' +
-        'k  h  k  h  s  h  k  s  k  s  k  s  s  s  s  s ') }
+        'k   h   k   h   s   h   k   h   k   h   k   h   s   h   k   h  ' +
+        'k   h   k   h   s   h   k   h   k   h   k   h   s   h   s   h  ' +
+        'k   h   k   h   s   h   k   h   k   h   k   h   s   h   k   h  ' +
+        'k   h   k   h   s   h   k   h   s   s   k   k   s   s   s   s  ' +
+        'k   h   k   h   s   h   k   h   k   h   k   h   s   h   k   h  ' +
+        'k   h   k   h   s   h   k   h   k   h   k   h   s   h   s   h  ' +
+        'k   h   s   h   k   h   s   h   k   h   s   h   k   h   s   h  ' +
+        'k   s   k   s   s   s   k   s   k   k   s   s   s   s   s   s  ') },
     ]},
 
     /* named boss - heavier, half-step menace */

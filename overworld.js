@@ -19,8 +19,15 @@
      where you expect. */
   var TOP_WALK = 106, TOP_DASH = 176;
   var ACCEL = 200, DECEL = 620;
-  /* the fractions of top speed where the Air Shoes light up and then burn */
-  var FIRE_1 = 0.55, FIRE_2 = 0.86;
+  /* The Air Shoes light off a burn timer rather than raw speed: the speed
+     ramp is under a second end to end, so staging the fire on it left the
+     half-lit frame on screen for a quarter of a second and you never saw
+     it.  Burn charges while skating (scaled by how fast he is actually
+     going) and drains quickly when he stops, which puts a full second on
+     the heel-vents stage. */
+  var FIRE_1 = 0.35, FIRE_2 = 1.35, BURN_DRAIN = 2.5;
+  /* the spin: a short roll you can trigger once he is at a full burn */
+  var SPIN_TIME = 0.62, SPIN_BOOST = 1.4;
 
   function Overworld(mapId, opt) {
     opt = opt || {};
@@ -33,7 +40,8 @@
       vx: 0, vy: 0,
       face: 1,            // -1 / +1, only meaningful when dir === 'side'
       dir: 'down',        // 'side' | 'down' | 'up'
-      anim: 0, moving: false, skating: false, spd: 0, charge: 0
+      anim: 0, moving: false, skating: false, spd: 0, charge: 0,
+      burn: 0, spin: 0
     };
     this.walked = 0;
     this.nextEnc = this.rollEncDistance();
@@ -192,7 +200,8 @@
   Overworld.prototype.nearObject = function () {
     var p = this.player, best = null, bd = 24 * 24;
     this.map.objects.forEach(function (o) {
-      if (o.kind !== 'gate' && o.kind !== 'save' && (o.used || !o.alive)) return;
+      if (o.kind !== 'gate' && o.kind !== 'save' && o.kind !== 'sign' &&
+          o.kind !== 'npc' && (o.used || !o.alive)) return;
       var dx = o.x - p.x, dy = o.y - p.y, d = dx * dx + dy * dy;
       if (d < bd) { bd = d; best = o; }
     });
@@ -202,6 +211,19 @@
   Overworld.prototype.interact = function () {
     var o = this.nearObject(), self = this, P = this.progress();
     if (!o) return;
+
+    /* Boards and bystanders: read as often as you like, never an objective.
+       They are where the plot lives between missions. */
+    if (o.kind === 'sign' || o.kind === 'npc') {
+      var lore = (SH.MapLore[this.mapId] || {})[o.kind] || [];
+      var body = lore[o.loreIndex % (lore.length || 1)] ||
+                 ['…아무것도 적혀 있지 않다.'];
+      SH.Audio.sfx(o.kind === 'sign' ? 'confirm' : 'text');
+      this.box = new SH.Textbox(body.map(function (t) { return { text: t }; }),
+                                { onDone: function () { self.box = null; } });
+      SH.Tips.show('ow_read', '표지판과 사람들에게는 읽을 것이 있다.  미션과는 상관없다.');
+      return;
+    }
 
     if (o.kind === 'terminal') {
       o.used = true;
@@ -235,13 +257,25 @@
 
     if (o.kind === 'emerald') {
       o.used = true;
+      var first = SH.Game.emeraldCount() === 0;
       SH.Game.giveEmerald();
       SH.Audio.sfx('pickup');
       SH.flash('#7fdcff', 0.25);
-      this.box = new SH.Textbox([{
+      var lines = [{
         who: '섀도우', face: 'face_shadow',
         text: '카오스 에메랄드... ' + SH.Game.emeraldCount() + '개째다.'
-      }], { onDone: function () { self.box = null; } });
+      }];
+      /* the emeralds are what the Chaos moves run on, so the first one is
+         also the moment they become usable at all */
+      if (first) {
+        lines.push({ who: '섀도우', face: 'face_shadow',
+                     text: '이 힘이라면… 카오스 컨트롤을 쓸 수 있다.' });
+        lines.push({ text: '카오스 스피어 · 카오스 블래스트 · 카오스 컨트롤이 해금되었다.' });
+      }
+      if (SH.Game.emeraldCount() >= 7) {
+        lines.push({ text: '일곱 개가 모두 모였다.  진정한 결말로 가는 길이 열려 있다.' });
+      }
+      this.box = new SH.Textbox(lines, { onDone: function () { self.box = null; } });
       return;
     }
 
@@ -361,19 +395,44 @@
     p.moving = !!(ax.x || ax.y);
     p.skating = p.moving && dash;
 
+    /* Spin: press down at a full burn and he curls up and rolls.  It keeps
+       the heading he already had, so it never fights the D-pad for a turn,
+       it carries itself once started, and nothing can jump him mid-roll. */
+    if (p.spin > 0) {
+      p.spin = Math.max(0, p.spin - dt);
+      p.moving = true;
+      p.skating = true;
+    } else if (p.skating && p.burn >= FIRE_2 && p.dir === 'side' &&
+               SH.Input.pressed('down')) {
+      p.spin = SPIN_TIME;
+      SH.Audio.sfx('chaos');
+    }
+
     /* Speed ramps the way it does in the series - you do not get top speed
-       for free the instant you touch the key, you build to it.  The skate
-       art is staged off the same ramp, so the fire lights as he winds up
-       rather than switching on with the pose. */
+       for free the instant you touch the key, you build to it. */
     var top = p.moving ? (dash ? TOP_DASH : TOP_WALK) : 0;
+    if (p.spin > 0) top = TOP_DASH;
     if (p.spd < top) p.spd = Math.min(top, p.spd + ACCEL * dt);
     else if (p.spd > top) p.spd = Math.max(top, p.spd - DECEL * dt);
     p.charge = SH.clamp(p.spd / TOP_DASH, 0, 1);
+    if (p.skating) {
+      p.burn += dt * p.charge;
+      /* tell them about the spin when they first hit a full burn, not after
+         they have already stumbled into it */
+      if (p.burn >= FIRE_2) {
+        SH.Tips.show('ow_spin',
+          '에어 슈즈가 완전히 점화됐다.  이 상태에서 ↓ 를 누르면 스핀 (조우 무시).');
+      }
+    } else {
+      p.burn = Math.max(0, p.burn - dt * BURN_DRAIN);
+    }
 
     var speed = p.spd * SH.Settings.speedMul() * dt;
+    if (p.spin > 0) speed *= SPIN_BOOST;
     if (ax.x && ax.y) speed *= 0.72;
     /* horizontal input wins the facing, so a diagonal keeps the profile */
-    if (ax.x) { p.dir = 'side'; p.face = ax.x > 0 ? 1 : -1; }
+    if (p.spin > 0) { ax = { x: p.face, y: 0 }; }
+    else if (ax.x) { p.dir = 'side'; p.face = ax.x > 0 ? 1 : -1; }
     else if (ax.y) p.dir = ax.y > 0 ? 'down' : 'up';
     if (p.moving) {
       this.tryMove(ax.x * speed, 0);
@@ -386,6 +445,7 @@
       /* divided by the speed setting so 매우 빠름 covers more map per
          encounter instead of running into more of them */
       var dist = speed * Math.hypot(ax.x, ax.y) / SH.Settings.speedMul();
+      if (p.spin > 0) dist = 0;               /* rolling, nothing can jump him */
       if (this.grace > 0) this.grace -= dist;
       else {
         this.walked += dist;
@@ -403,16 +463,66 @@
   };
 
   /* ---------------- draw -------------------------------------------------- */
+  /* Is the tile at (tx, ty) something you can stand on? */
+  Overworld.prototype.walkTile = function (tx, ty) {
+    if (tx < 0 || ty < 0 || tx >= this.map.w || ty >= this.map.h) return false;
+    return this.def.solid.indexOf(this.map.grid[ty][tx]) < 0;
+  };
+
   Overworld.prototype.drawTiles = function () {
     var cx = Math.floor(this.cam.x), cy = Math.floor(this.cam.y);
     var x0 = Math.floor(cx / TS), y0 = Math.floor(cy / TS);
     var x1 = Math.min(this.map.w - 1, x0 + Math.ceil(SH.W / TS) + 1);
     var y1 = Math.min(this.map.h - 1, y0 + Math.ceil(SH.H / TS) + 1);
-    for (var y = Math.max(0, y0); y <= y1; y++) {
-      for (var x = Math.max(0, x0); x <= x1; x++) {
+    var y, x;
+    for (y = Math.max(0, y0); y <= y1; y++) {
+      for (x = Math.max(0, x0); x <= x1; x++) {
         var ch = this.map.grid[y][x];
         var name = this.def.legend[ch] || this.def.legend[this.def.floor] || 'void';
         SH.draw('tiles', SH.frameOf('tiles', name, 0), x * TS - cx, y * TS - cy);
+      }
+    }
+
+    /* Mark where the floor ends.  Which tiles you can run on was guesswork
+       from the art alone - some walls are darker than some floors and the
+       stage palettes differ - so every boundary between a solid tile and a
+       walkable one gets drawn: a lit cap along the top of the wall and a
+       shadow cast onto the floor beside it. */
+    var ctx = SH.ctx;
+    for (y = Math.max(0, y0); y <= y1; y++) {
+      for (x = Math.max(0, x0); x <= x1; x++) {
+        if (this.walkTile(x, y)) continue;
+        var px = x * TS - cx, py = y * TS - cy;
+        if (this.walkTile(x, y - 1)) {           // lit cap, and its shadow
+          ctx.save();
+          ctx.globalAlpha = 0.85;
+          SH.rect(px, py, TS, 1, '#d6dcf0');
+          ctx.globalAlpha = 0.30;
+          SH.rect(px, py - 2, TS, 2, '#000000');
+          ctx.restore();
+        }
+        if (this.walkTile(x, y + 1)) {           // the wall's own shadow
+          ctx.save();
+          ctx.globalAlpha = 0.42;
+          SH.rect(px, py + TS, TS, 3, '#000000');
+          ctx.restore();
+        }
+        if (this.walkTile(x - 1, y)) {
+          ctx.save();
+          ctx.globalAlpha = 0.30;
+          SH.rect(px - 2, py, 2, TS, '#000000');
+          ctx.globalAlpha = 0.55;
+          SH.rect(px, py, 1, TS, '#8d93ad');
+          ctx.restore();
+        }
+        if (this.walkTile(x + 1, y)) {
+          ctx.save();
+          ctx.globalAlpha = 0.30;
+          SH.rect(px + TS, py, 2, TS, '#000000');
+          ctx.globalAlpha = 0.55;
+          SH.rect(px + TS - 1, py, 1, TS, '#8d93ad');
+          ctx.restore();
+        }
       }
     }
   };
@@ -423,7 +533,7 @@
       var x = o.x - 8 - cx, y = o.y - 8 - cy;
       if (x < -TS || y < -TS || x > SH.W || y > SH.H) return;
       if (o.kind !== 'gate' && !(o.used || !o.alive)) {
-        var big = o.kind === 'save';
+        var big = o.kind === 'save' || o.kind === 'sign' || o.kind === 'npc';
         SH.groundShadow(o.x - cx, o.y - cy + (big ? 9 : 7),
                         big ? 9 : 6, big ? 3 : 2.2, 0.34);
       }
@@ -450,10 +560,20 @@
           SH.draw('hud', SH.frameOf('hud', SH.Game.emeraldSpriteFor(o), 0),
                   x, y + Math.sin(SH.time * 2.5 + o.tx) * 2);
         }
+      } else if (o.kind === 'sign') {
+        var near = self.nearObject() === o;
+        SH.draw('signpost', SH.frameOf('signpost', near ? 'lit' : 'idle', 0),
+                o.x - 8 - cx, o.y - 16 - cy);
+      } else if (o.kind === 'npc') {
+        var who = ['a', 'b', 'c'][(o.variant || 0) % 3];
+        SH.draw('civilian', SH.frameOf('civilian', who, (SH.time * 2 + o.tx) | 0),
+                o.x - 8 - cx, o.y - 16 - cy);
       }
       /* interaction prompt */
-      if (self.nearObject() === o && !(o.used || !o.alive) || (o.kind === 'gate' && self.nearObject() === o)) {
-        SH.text('Z', o.x - cx, o.y - cy - 20,
+      var readable = o.kind === 'sign' || o.kind === 'npc';
+      if (self.nearObject() === o &&
+          (readable || !(o.used || !o.alive) || o.kind === 'gate')) {
+        SH.text('Z', o.x - cx, o.y - cy - (readable ? 26 : 20),
                 { color: '#ffd23f', size: 9, align: 'center' });
       }
     });
@@ -471,8 +591,9 @@
     var sheet = SH.Game.superForm ? 'shadow_super_ow' : 'shadow_ow';
     var pre = p.dir === 'down' ? 'down_' : (p.dir === 'up' ? 'up_' : '');
     var anim, phase;
-    if (p.skating) {
-      var lvl = p.charge >= FIRE_2 ? 2 : (p.charge >= FIRE_1 ? 1 : 0);
+    if (p.spin > 0) { anim = pre + 'spin'; phase = p.anim * 2; }
+    else if (p.skating) {
+      var lvl = p.burn >= FIRE_2 ? 2 : (p.burn >= FIRE_1 ? 1 : 0);
       anim = pre + 'skate' + lvl;
       phase = p.anim;
     }

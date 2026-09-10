@@ -106,6 +106,8 @@ def build():
             for lvl in range(3):
                 f += [chars.hedgehog_small(kind, 'skate%d' % lvl, i / 4.0, facing)
                       for i in range(4)]
+        # the spin ball is the same from every side, so it is stored once
+        f += [chars.hedgehog_small(kind, 'spin', i / 4.0, 'side') for i in range(4)]
         return f
 
     # eighteen frames per facing: idle x2, walk x4, skate0/1/2 x4 each
@@ -120,6 +122,8 @@ def build():
         # `skate` without a stage is the full burn, which is what the sheet
         # meant before the stages existed
         ow_names[pre + 'skate'] = ow_names[pre + 'skate2']
+    for pre in ('', 'down_', 'up_'):        # one ball, shared by every facing
+        ow_names[pre + 'spin'] = [54, 55, 56, 57]
     ow_names['attack'] = [0]
     ow_names['hurt'] = [1]
     emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, cols=12, frame_names=ow_names)
@@ -207,6 +211,11 @@ def build():
          frame_names={'locked': [0], 'open': [1]}, edge_check=False)
     emit('savepoint', [U.save_point(False), U.save_point(True)], U.UI_PAL,
          frame_names={'idle': [0], 'lit': [1]}, edge_check=False)
+    emit('signpost', [U.signpost(False), U.signpost(True)], U.UI_PAL,
+         frame_names={'idle': [0], 'lit': [1]}, edge_check=False)
+    emit('civilian', [U.civilian(k, i / 2.0) for k in range(3) for i in range(2)],
+         U.UI_PAL, cols=6,
+         frame_names={'a': [0, 1], 'b': [2, 3], 'c': [4, 5]}, edge_check=False)
 
     # ---- projectiles (each its own size) --------------------------------
     for nm, fn in (('p_bullet', U.bullet_small), ('p_gun', U.bullet_gun),

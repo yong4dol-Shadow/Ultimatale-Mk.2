@@ -145,6 +145,43 @@ def blade():
 
 
 # ---- large props --------------------------------------------------------
+def signpost(lit=False):
+    """A roadside board.  Something to read that is not a mission objective."""
+    cv = Canvas(16, 24)
+    cv.rect(7, 10, 2, 12, 'w')                       # post
+    cv.rect(7, 10, 1, 12, 'W')
+    cv.poly([(1, 2), (15, 2), (15, 12), (1, 12)], 's')   # board
+    cv.rect(2, 3, 12, 8, 'S')
+    for i in range(4):                               # lines of text on it
+        cv.rect(3, 4 + i * 2, 9 - (i % 2) * 3, 1, 'K')
+    cv.rect(1, 2, 14, 1, 'W')
+    if lit:
+        cv.rect(0, 1, 16, 1, 'y')
+        cv.px(0, 6, 'y'); cv.px(15, 6, 'y')
+    cv.outline('0')
+    return cv
+
+
+def civilian(kind=0, t=0.0):
+    """A bystander.  Three flavours so a street does not look cloned."""
+    cv = Canvas(16, 24)
+    bob = math.sin(t * math.pi * 2) * 0.6
+    coat = ['C', 'J', 'P'][kind % 3]
+    cv.rect(5, 20, 3, 3, '1')                        # feet
+    cv.rect(8, 20, 3, 3, '1')
+    cv.poly([(4, 11 + bob), (12, 11 + bob), (13, 21), (3, 21)], coat)   # coat
+    cv.rect(7, 13 + bob, 2, 7, '2')                  # front seam
+    cv.ellipse(5, 15 + bob, 1.4, 3.4, coat)          # arms
+    cv.ellipse(11, 15 + bob, 1.4, 3.4, coat)
+    cv.ellipse(8, 7 + bob, 3.6, 4.0, 's')            # head
+    cv.poly([(4, 5 + bob), (12, 5 + bob), (12, 3 + bob), (4, 3 + bob)],
+            ['K', '3', 'w'][kind % 3])               # hair
+    cv.px(6.6, 7 + bob, '0')
+    cv.px(9.4, 7 + bob, '0')
+    cv.outline('0')
+    return cv
+
+
 def exit_door(open_):
     """The stage exit: two tiles wide, three tall, so it cannot be mistaken
     for scenery the way the old single-tile gate could."""

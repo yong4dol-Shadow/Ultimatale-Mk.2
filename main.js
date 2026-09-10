@@ -224,6 +224,11 @@
     emeraldCount: function () {
       return this.emeralds.filter(Boolean).length;
     },
+    /* Chaos Spear / Blast / Control are the emeralds' power, so none of them
+       work until he is carrying one. */
+    chaosUnlocked: function () {
+      return this.emeraldCount() > 0;
+    },
     giveEmerald: function () {
       for (var i = 0; i < 7; i++) if (!this.emeralds[i]) { this.emeralds[i] = true; return i; }
       return -1;

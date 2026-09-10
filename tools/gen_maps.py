@@ -20,7 +20,7 @@ from collections import deque
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TARGET = os.path.join(ROOT, 'js', 'data_maps.js')
 
-W, H = 128, 88
+W, H = 160, 110
 
 
 class Grid:
@@ -141,10 +141,11 @@ def reachable(rows, solid, obj_chars):
 
 
 # --------------------------------------------------------------------------
-# Layouts. Everything is laid out in tiles; at 128x88 a stage is roughly six
-# screens across and five and a half down, so even the "매우 빠름" movement
-# speed has somewhere to go. Objects are dropped with place(), which finds
-# the nearest open floor rather than trusting a hard-coded coordinate.
+# Layouts. Everything is laid out in tiles; at 160x110 a stage is about eight
+# screens across and seven down, so even the "매우 빠름" movement speed has
+# somewhere to go. Objects are dropped with place(), which finds the nearest
+# open floor rather than trusting a hard-coded coordinate - so the absolute
+# numbers below only have to be roughly right.
 # --------------------------------------------------------------------------
 def westopolis():
     g = Grid(',', '#', floor=',.-o')
@@ -159,11 +160,13 @@ def westopolis():
         g.place(9 + i * 8, 6 + (i % 5) * 15, 'x')
     for i in range(9):
         g.place(16 + i * 13, 12 + (i % 4) * 18, 'o')
-    g.place(3, 10, 'S')
-    g.place(24, 4, 'T'); g.place(70, 52, 'T'); g.place(104, 80, 'T')
-    g.place(60, 12, 'V'); g.place(96, 62, 'V')
-    g.place(84, 34, 'E')
-    g.put(124, 85, 'G')
+    g.place(4, 12, 'S')
+    g.place(30, 5, 'T'); g.place(88, 65, 'T'); g.place(130, 100, 'T')
+    g.place(75, 15, 'V'); g.place(120, 78, 'V')
+    g.place(105, 42, 'E')
+    g.place(30, 14, 'B'); g.place(86, 40, 'B'); g.place(140, 92, 'B')
+    g.place(18, 30, 'N'); g.place(66, 70, 'N'); g.place(118, 24, 'N')
+    g.put(W - 4, H - 3, 'G')
     return g
 
 
@@ -180,13 +183,15 @@ def glyphic_canyon():
         g.box(x, y, w, h, '=', '.', (('SNEW'[i % 4], w // 3),))
     g.rect(40, 44, 30, 5, '#')
     g.rect(52, 44, 6, 5, '.')
-    g.place(3, 3, 'S')
-    g.place(22, 30, 'T'); g.place(84, 66, 'T'); g.place(51, 11, 'T')
-    g.place(12, 62, 'C'); g.place(78, 20, 'C'); g.place(114, 52, 'C')
-    g.place(40, 74, 'P'); g.place(104, 9, 'P'); g.place(20, 10, 'P')
-    g.place(108, 40, 'V'); g.place(30, 48, 'V')
-    g.place(122, 6, 'E')
-    g.put(124, 85, 'G')
+    g.place(4, 4, 'S')
+    g.place(28, 38, 'T'); g.place(105, 82, 'T'); g.place(64, 14, 'T')
+    g.place(15, 78, 'C'); g.place(98, 25, 'C'); g.place(142, 65, 'C')
+    g.place(50, 92, 'P'); g.place(130, 11, 'P'); g.place(25, 12, 'P')
+    g.place(135, 50, 'V'); g.place(38, 60, 'V')
+    g.place(152, 8, 'E')
+    g.place(20, 12, 'B'); g.place(100, 34, 'B'); g.place(56, 92, 'B')
+    g.place(40, 60, 'N'); g.place(128, 78, 'N')
+    g.put(W - 4, H - 3, 'G')
     return g
 
 
@@ -203,11 +208,13 @@ def ark():
         g.rect(16 + i * 14, 8 + (i % 4) * 12, 5, 4, '=')
     for i in range(6):
         g.rect(10 + i * 20, 18 + (i % 3) * 24, 6, 5, ',')
-    g.place(4, 7, 'S')
-    g.place(26, 18, 'T'); g.place(86, 8, 'T'); g.place(50, 78, 'T')
-    g.place(70, 42, 'V'); g.place(18, 66, 'V')
-    g.place(108, 20, 'E'); g.place(38, 54, 'E')
-    g.put(124, 85, 'G')
+    g.place(5, 9, 'S')
+    g.place(32, 22, 'T'); g.place(108, 10, 'T'); g.place(62, 98, 'T')
+    g.place(88, 52, 'V'); g.place(22, 82, 'V')
+    g.place(135, 25, 'E'); g.place(48, 68, 'E')
+    g.place(14, 12, 'B'); g.place(74, 30, 'B'); g.place(120, 88, 'B')
+    g.place(46, 26, 'N'); g.place(98, 60, 'N'); g.place(26, 92, 'N')
+    g.put(W - 4, H - 3, 'G')
     return g
 
 
@@ -225,12 +232,14 @@ def gun_fortress():
         for seg in range(3):
             g.rect(30 + seg * 22, 19 + i * 18, 13, 2, '=')
     g.rect(2, 2, 5, 4, '.')
-    g.place(3, 3, 'S')
-    g.place(16, 10, 'C'); g.place(60, 10, 'C'); g.place(16, 46, 'C'); g.place(112, 18, 'C')
-    g.place(82, 46, 'T'); g.place(112, 54, 'T'); g.place(60, 64, 'T')
-    g.place(82, 10, 'V'); g.place(16, 64, 'V')
-    g.place(38, 46, 'E')
-    g.put(124, 85, 'G')
+    g.place(4, 4, 'S')
+    g.place(20, 12, 'C'); g.place(75, 12, 'C'); g.place(20, 58, 'C'); g.place(140, 22, 'C')
+    g.place(102, 58, 'T'); g.place(140, 68, 'T'); g.place(75, 80, 'T')
+    g.place(102, 12, 'V'); g.place(20, 80, 'V')
+    g.place(48, 58, 'E')
+    g.place(24, 16, 'B'); g.place(96, 32, 'B'); g.place(52, 86, 'B')
+    g.place(130, 24, 'N'); g.place(34, 68, 'N')
+    g.put(W - 4, H - 3, 'G')
     return g
 
 
@@ -243,13 +252,15 @@ def black_comet():
                 (78, 66, 22, 15), (104, 8, 18, 14)]
     for i, (x, y, w, h) in enumerate(chambers):
         g.box(x, y, w, h, '#', '.', (('SNEW'[i % 4], w // 3),))
-    g.place(3, 3, 'S')
+    g.place(4, 4, 'S')
     for i, (x, y) in enumerate(((28, 12), (76, 12), (18, 38), (60, 40),
                                 (100, 45), (44, 68), (88, 72), (112, 14))):
         g.place(x, y, 'P')
-    g.place(62, 24, 'V'); g.place(110, 66, 'V')
-    g.place(122, 5, 'E'); g.place(4, 84, 'E')
-    g.put(124, 85, 'G')
+    g.place(78, 30, 'V'); g.place(138, 82, 'V')
+    g.place(152, 6, 'E'); g.place(5, 105, 'E')
+    g.place(30, 20, 'B'); g.place(108, 30, 'B'); g.place(60, 86, 'B')
+    g.place(88, 56, 'N'); g.place(18, 74, 'N')
+    g.put(W - 4, H - 3, 'G')
     return g
 
 
@@ -282,8 +293,8 @@ def main():
                                 grid.g[gy][gx] = grid.floor[0]
         rows = grid.rows()
         assert len(rows) == H and all(len(r) == W for r in rows), name
-        ok, missing = reachable(rows, solid, 'TCPEGV')
-        counts = {c: sum(r.count(c) for r in rows) for c in 'STCPEGV'}
+        ok, missing = reachable(rows, solid, 'TCPEGVBN')
+        counts = {c: sum(r.count(c) for r in rows) for c in 'STCPEGVBN'}
         print('%-16s %dx%d  %s  %s' % (
             name, W, H,
             ' '.join('%s%d' % (k, v) for k, v in counts.items() if v),
