@@ -176,6 +176,9 @@ def westopolis():
     g.place(160, 22, 'B'); g.place(60, 118, 'B'); g.place(188, 96, 'B')
     g.place(96, 46, 'N'); g.place(30, 96, 'N')
     g.place(46, 62, 'L'); g.place(118, 34, 'L'); g.place(150, 120, 'L')
+    # set dressing, spread on a coprime stride so it never lines up into rows
+    for i in range(280):
+        g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
 
@@ -204,6 +207,9 @@ def glyphic_canyon():
     g.place(150, 18, 'B'); g.place(36, 118, 'B'); g.place(188, 74, 'B')
     g.place(104, 34, 'N'); g.place(72, 122, 'N')
     g.place(24, 44, 'L'); g.place(128, 96, 'L'); g.place(176, 128, 'L')
+    # set dressing, spread on a coprime stride so it never lines up into rows
+    for i in range(240):
+        g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
 
@@ -232,6 +238,9 @@ def ark():
     g.place(160, 20, 'B'); g.place(36, 92, 'B'); g.place(110, 132, 'B')
     g.place(126, 76, 'N'); g.place(68, 44, 'N')
     g.place(20, 62, 'L'); g.place(92, 20, 'L'); g.place(150, 108, 'L'); g.place(186, 44, 'L')
+    # set dressing, spread on a coprime stride so it never lines up into rows
+    for i in range(240):
+        g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
 
@@ -260,6 +269,9 @@ def gun_fortress():
     g.place(150, 20, 'B'); g.place(34, 118, 'B'); g.place(190, 90, 'B')
     g.place(96, 52, 'N'); g.place(60, 128, 'N')
     g.place(24, 44, 'L'); g.place(118, 96, 'L'); g.place(170, 128, 'L')
+    # set dressing, spread on a coprime stride so it never lines up into rows
+    for i in range(240):
+        g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
 
@@ -284,6 +296,9 @@ def black_comet():
     g.place(160, 24, 'B'); g.place(40, 116, 'B'); g.place(190, 80, 'B')
     g.place(100, 40, 'N'); g.place(66, 128, 'N')
     g.place(26, 58, 'L'); g.place(132, 98, 'L'); g.place(180, 130, 'L')
+    # set dressing, spread on a coprime stride so it never lines up into rows
+    for i in range(240):
+        g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
 
@@ -318,7 +333,7 @@ def main():
         rows = grid.rows()
         assert len(rows) == H and all(len(r) == W for r in rows), name
         ok, missing = reachable(rows, solid, 'TCPEGVBNL')
-        counts = {c: sum(r.count(c) for r in rows) for c in 'STCPEGVBNL'}
+        counts = {c: sum(r.count(c) for r in rows) for c in 'STCPEGVBNLD'}
         print('%-16s %dx%d  %s  %s' % (
             name, W, H,
             ' '.join('%s%d' % (k, v) for k, v in counts.items() if v),

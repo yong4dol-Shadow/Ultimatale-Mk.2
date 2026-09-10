@@ -215,6 +215,9 @@ def build():
          frame_names={'idle': [0], 'lit': [1]}, edge_check=False)
     emit('datalog', [U.datalog(False), U.datalog(True)], U.UI_PAL,
          frame_names={'idle': [0], 'lit': [1]}, edge_check=False)
+    emit('props', [fn() for _, fn in U.PROPS], U.UI_PAL, cols=9,
+         frame_names={nm: [i] for i, (nm, _) in enumerate(U.PROPS)},
+         edge_check=False)
     emit('civilian', [U.civilian(k, i / 2.0) for k in range(3) for i in range(2)],
          U.UI_PAL, cols=6,
          frame_names={'a': [0, 1], 'b': [2, 3], 'c': [4, 5]}, edge_check=False)

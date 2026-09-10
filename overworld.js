@@ -212,6 +212,7 @@
   Overworld.prototype.nearObject = function () {
     var p = this.player, best = null, bd = 24 * 24;
     this.map.objects.forEach(function (o) {
+      if (o.kind === 'prop') return;          /* scenery, nothing to press Z on */
       if (o.kind !== 'gate' && o.kind !== 'save' && !READABLE[o.kind] &&
           (o.used || !o.alive)) return;
       var dx = o.x - p.x, dy = o.y - p.y, d = dx * dx + dy * dy;
@@ -456,12 +457,20 @@
       p.spin = Math.max(0, p.spin - dt);
       p.moving = true;
       p.skating = true;
-      if (ax.x === p.face) {
+      /* A fresh PRESS of the way he is going uncurls him.  Testing the
+         held axis instead cancelled the roll on the very next frame, since
+         the direction you were already running is still down. */
+      if (SH.Input.pressed(p.face > 0 ? 'right' : 'left')) {
         p.spin = 0;                       /* uncurl, back on the shoes */
         p.burn = Math.max(p.burn, FIRE_2);
       }
     } else if (!revStance && p.skating && p.burn >= FIRE_2 &&
-               p.dir === 'side' && SH.Input.pressed('down')) {
+               ax.x !== 0 && SH.Input.pressed('down')) {
+      /* Left or right has to be HELD for down to mean "roll".  Firing it on
+         down alone meant that from a standstill - or any time you simply
+         wanted to walk toward the camera - he curled up instead.  Standing
+         still, down does nothing at all now; the spin dash is the standing
+         version of the move. */
       p.spin = SPIN_TIME;
       SH.Audio.sfx('chaos');
     }
@@ -594,7 +603,8 @@
       var x = o.x - 8 - cx, y = o.y - 8 - cy;
       if (x < -TS || y < -TS || x > SH.W || y > SH.H) return;
       if (o.kind !== 'gate' && !(o.used || !o.alive)) {
-        var big = o.kind === 'save' || o.kind === 'sign' || o.kind === 'npc';
+        var big = o.kind === 'save' || o.kind === 'sign' ||
+                  o.kind === 'npc' || o.kind === 'prop';
         SH.groundShadow(o.x - cx, o.y - cy + (big ? 9 : 7),
                         big ? 9 : 6, big ? 3 : 2.2, 0.34);
       }
@@ -625,6 +635,8 @@
         var near = self.nearObject() === o;
         SH.draw('signpost', SH.frameOf('signpost', near ? 'lit' : 'idle', 0),
                 o.x - 8 - cx, o.y - 16 - cy);
+      } else if (o.kind === 'prop') {
+        SH.draw('props', SH.frameOf('props', o.prop, 0), x, o.y - 16 - cy);
       } else if (o.kind === 'log') {
         var nearL = self.nearObject() === o;
         SH.draw('datalog', SH.frameOf('datalog', nearL ? 'lit' : 'idle', 0),

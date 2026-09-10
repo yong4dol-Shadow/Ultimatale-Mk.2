@@ -233,11 +233,13 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     SH.Input.state.down = false;
     await new Promise(r => setTimeout(r, 60));
     const launched = { spin: p.spin, spd: p.spd, burn: p.burn };
-    /* pushing the way he is already going uncurls him */
-    SH.Input.state.right = true;
+    /* pushing the way he is already going uncurls him - a real key edge,
+       since the uncurl looks for a fresh press rather than a held axis */
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'ArrowRight' }));
     await new Promise(r => setTimeout(r, 90));
     const uncurled = p.spin;
-    SH.Input.state.right = false;
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'ArrowRight' }));
+    p.spin = 0;
     return { stance, walksDown, revs, heldStill, launched, uncurled };
   });
   check('down on its own still just walks him downward', dash.walksDown === true);
@@ -248,6 +250,45 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     dash.launched.spin > 0 && dash.launched.spd >= 170);
   check('and he comes out of it already fully lit', dash.launched.burn >= 1.35);
   check('pushing forward uncurls him back onto the shoes', dash.uncurled === 0);
+
+  /* Down is a direction first.  The roll is only ever a modifier on a run
+     that is already happening. */
+  const rollGate = await page.evaluate(async () => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const p = o.player;
+    /* real key events - poking Input.buf from outside does not survive, the
+       loop clears the buffer at the end of every frame */
+    const key = (type, code) =>
+      window.dispatchEvent(new KeyboardEvent(type, { code: code }));
+    const clear = () => {
+      ['ArrowRight', 'ArrowDown', 'KeyX'].forEach(c => key('keyup', c));
+    };
+    const attempt = async holdRight => {
+      clear();
+      p.x = o.map.spawn.x; p.y = o.map.spawn.y;
+      p.spin = 0; p.rev = 0; p.revving = false;
+      p.burn = 2.0; p.lit = true; p.dir = 'side'; p.face = 1;
+      p.spd = holdRight ? 176 : 0;
+      key('keydown', 'KeyX');                    // dash held
+      if (holdRight) key('keydown', 'ArrowRight');
+      await new Promise(r => setTimeout(r, 160));
+      key('keydown', 'ArrowDown');               // tap down
+      await new Promise(r => setTimeout(r, 120));
+      const spun = p.spin > 0;
+      clear();
+      p.spin = 0; p.rev = 0; p.revving = false;   /* never leak a roll onward */
+      await new Promise(r => setTimeout(r, 60));
+      return spun;
+    };
+    const still = await attempt(false);
+    const running = await attempt(true);
+    clear();
+    p.spin = 0; p.rev = 0; p.revving = false; p.burn = 0; p.lit = false;
+    await new Promise(r => setTimeout(r, 80));
+    return { still: still, running: running };
+  });
+  check('standing still, down never rolls him', rollGate.still === false);
+  check('running, down does roll him', rollGate.running === true);
   check('the fast option moves noticeably faster',
     moved.mulFast >= moved.mulSlow * 1.3 && moved.fast.px > moved.slow.px);
 

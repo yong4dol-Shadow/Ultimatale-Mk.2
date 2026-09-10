@@ -162,6 +162,226 @@ def signpost(lit=False):
     return cv
 
 
+# --------------------------------------------------------------------------
+# Set dressing.  None of these block the route - the stages are meant to be
+# run across - they are there so a screen of floor is not just floor.  All
+# are 16x24 and drawn bottom-anchored on their tile.
+# --------------------------------------------------------------------------
+def _post(cv, x, w, top, col='4', cap='5'):
+    cv.rect(x, top, w, 23 - top, col)
+    cv.rect(x, top, w, 1, cap)
+
+
+def prop_lamp():
+    cv = Canvas(16, 24)
+    _post(cv, 7, 2, 6)
+    cv.rect(4, 3, 8, 4, '4')
+    cv.rect(5, 4, 6, 2, 'y')                    # the lit element
+    cv.rect(4, 7, 8, 1, '3')
+    cv.rect(5, 22, 6, 2, '3')                   # base
+    cv.outline('0')
+    return cv
+
+
+def prop_hydrant():
+    cv = Canvas(16, 24)
+    cv.rect(6, 14, 4, 9, 'r')
+    cv.rect(4, 16, 8, 3, 'r')
+    cv.ellipse(8, 13, 2.6, 2.2, 'r')
+    cv.rect(4, 22, 8, 2, '3')
+    cv.px(7, 12, 'q')
+    cv.outline('0')
+    return cv
+
+
+def prop_bench():
+    cv = Canvas(16, 24)
+    cv.rect(2, 16, 12, 2, 'w')
+    cv.rect(2, 13, 12, 2, 'w')
+    cv.rect(3, 18, 2, 5, '3')
+    cv.rect(11, 18, 2, 5, '3')
+    cv.outline('0')
+    return cv
+
+
+def prop_vending():
+    cv = Canvas(16, 24)
+    cv.rect(3, 8, 10, 15, '3')
+    cv.rect(4, 9, 6, 9, 'C')                    # window
+    for i in range(3):
+        cv.rect(5, 10 + i * 3, 4, 2, 'y' if i == 1 else 'r')
+    cv.rect(10, 10, 2, 5, '5')                  # buttons
+    cv.rect(4, 19, 8, 2, '2')
+    cv.outline('0')
+    return cv
+
+
+def prop_wreck():
+    cv = Canvas(16, 24)
+    cv.poly([(1, 18), (4, 13), (12, 13), (15, 18), (15, 21), (1, 21)], '3')
+    cv.rect(5, 14, 6, 3, '1')                   # blown-out cabin
+    cv.ellipse(4, 21, 2.2, 1.8, '0')
+    cv.ellipse(12, 21, 2.2, 1.8, '0')
+    cv.px(3, 15, 'o'); cv.px(13, 16, 'o')       # still smouldering
+    cv.outline('0')
+    return cv
+
+
+def prop_obelisk():
+    cv = Canvas(16, 24)
+    cv.poly([(5, 2), (11, 2), (12, 22), (4, 22)], '5')
+    cv.poly([(6, 3), (10, 3), (10.5, 21), (5.5, 21)], '6')
+    for i in range(4):                          # glyph rows
+        cv.rect(6, 6 + i * 4, 4, 1, '3')
+    cv.rect(3, 22, 10, 2, '4')
+    cv.outline('0')
+    return cv
+
+
+def prop_cairn():
+    cv = Canvas(16, 24)
+    cv.ellipse(8, 21, 5.0, 2.6, '5')
+    cv.ellipse(7, 17, 3.8, 2.4, '6')
+    cv.ellipse(9, 13, 2.8, 2.0, '5')
+    cv.ellipse(8, 10, 1.8, 1.6, '6')
+    cv.outline('0')
+    return cv
+
+
+def prop_deadtree():
+    cv = Canvas(16, 24)
+    cv.taper_line(8, 23, 8, 10, 2.2, 1.4, 'w')
+    cv.taper_line(8, 14, 3, 8, 1.4, 0.5, 'w')
+    cv.taper_line(8, 12, 13, 6, 1.4, 0.5, 'w')
+    cv.taper_line(8, 16, 12, 12, 1.2, 0.4, 'w')
+    cv.outline('0')
+    return cv
+
+
+def prop_brazier():
+    cv = Canvas(16, 24)
+    cv.rect(6, 16, 4, 7, '4')
+    cv.rect(4, 22, 8, 2, '3')
+    cv.poly([(3, 16), (13, 16), (11, 12), (5, 12)], '5')
+    cv.ellipse(8, 11, 3.2, 2.0, 'o')            # the fire in it
+    cv.ellipse(8, 10, 2.0, 1.6, 'y')
+    cv.ellipse(8, 9.4, 1.0, 1.0, 'h')
+    cv.outline('0')
+    return cv
+
+
+def prop_console():
+    cv = Canvas(16, 24)
+    cv.poly([(2, 10), (14, 10), (13, 22), (3, 22)], '3')
+    cv.rect(3, 11, 10, 6, '1')
+    for i in range(3):
+        cv.rect(4, 12 + i * 2, 7 - i * 2, 1, 'c')
+    for i in range(4):
+        cv.px(4 + i * 3, 19, 'j' if i % 2 else 'r')
+    cv.outline('0')
+    return cv
+
+
+def prop_tank():
+    cv = Canvas(16, 24)
+    cv.ellipse(8, 16, 3.6, 7.0, '4')
+    cv.ellipse(6.6, 16, 1.4, 6.0, '5')
+    cv.rect(7, 7, 2, 3, '3')                    # valve
+    cv.rect(5, 6, 6, 1, '5')
+    cv.rect(4, 12, 8, 1, 'y')                   # hazard band
+    cv.outline('0')
+    return cv
+
+
+def prop_locker():
+    cv = Canvas(16, 24)
+    cv.rect(3, 6, 10, 17, '4')
+    cv.rect(4, 7, 4, 15, '3')
+    cv.rect(8, 7, 4, 15, '3')
+    cv.px(7, 14, '6'); cv.px(9, 14, '6')        # handles
+    cv.rect(3, 6, 10, 1, '5')
+    cv.outline('0')
+    return cv
+
+
+def prop_generator():
+    cv = Canvas(16, 24)
+    cv.rect(2, 11, 12, 12, '3')
+    cv.rect(3, 12, 10, 4, '2')
+    cv.ellipse(8, 18, 3.0, 2.6, '4')
+    cv.ellipse(8, 18, 1.4, 1.2, 'y')
+    cv.rect(4, 8, 3, 3, '4')                    # exhaust
+    cv.px(5, 7, '5')
+    cv.outline('0')
+    return cv
+
+
+def prop_radar():
+    cv = Canvas(16, 24)
+    _post(cv, 7, 2, 12)
+    cv.rect(4, 22, 8, 2, '3')
+    cv.poly([(2, 4), (12, 2), (13, 9), (4, 11)], '5')
+    cv.poly([(4, 5), (11, 3.5), (11.5, 8), (5, 9.5)], '6')
+    cv.line(8, 6, 9, 12, '3')
+    cv.outline('0')
+    return cv
+
+
+def prop_ammo():
+    cv = Canvas(16, 24)
+    cv.rect(1, 16, 14, 7, 'K')
+    cv.rect(1, 16, 14, 2, 'k')
+    cv.rect(3, 19, 4, 2, 'y')
+    cv.rect(4, 12, 8, 4, 'K')                   # a second, smaller box
+    cv.rect(4, 12, 8, 1, 'k')
+    cv.outline('0')
+    return cv
+
+
+def prop_growth():
+    cv = Canvas(16, 24)
+    # a shade up from the comet's own floor, which is the same near-black
+    # maroon - drawn in it, these read as nothing at all
+    cv.taper_line(8, 23, 7, 8, 3.4, 1.0, 'n')
+    cv.taper_line(7, 14, 3, 9, 1.6, 0.5, 'n')
+    cv.taper_line(7, 17, 13, 12, 1.6, 0.5, 'n')
+    for i in range(4):
+        cv.px(6 + (i % 2) * 3, 10 + i * 3, 'r')
+    cv.outline('0')
+    return cv
+
+
+def prop_node():
+    cv = Canvas(16, 24)
+    cv.ellipse(8, 17, 5.0, 5.6, 'n')
+    cv.ellipse(8, 16, 3.0, 3.4, 'r')
+    cv.ellipse(8, 15.4, 1.6, 1.8, 'q')
+    cv.px(8, 15, 'h')
+    cv.taper_line(8, 22, 8, 23, 3.0, 4.0, 'M')
+    cv.outline('0')
+    return cv
+
+
+def prop_eggs():
+    cv = Canvas(16, 24)
+    for cx, cy, r in ((5, 20, 3.0), (11, 21, 2.6), (8, 16, 2.8), (12, 16, 2.0)):
+        cv.ellipse(cx, cy, r, r * 1.15, 'n')
+        cv.ellipse(cx, cy - 0.4, r * 0.5, r * 0.6, 'r')
+    cv.outline('0')
+    return cv
+
+
+PROPS = [
+    ('lamp', prop_lamp), ('hydrant', prop_hydrant), ('bench', prop_bench),
+    ('vending', prop_vending), ('wreck', prop_wreck),
+    ('obelisk', prop_obelisk), ('cairn', prop_cairn),
+    ('deadtree', prop_deadtree), ('brazier', prop_brazier),
+    ('console', prop_console), ('tank', prop_tank), ('locker', prop_locker),
+    ('generator', prop_generator), ('radar', prop_radar), ('ammo', prop_ammo),
+    ('growth', prop_growth), ('node', prop_node), ('eggs', prop_eggs),
+]
+
+
 def datalog(lit=False):
     """A dropped data slate.  The third readable, after boards and people."""
     cv = Canvas(16, 16)
