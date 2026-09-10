@@ -13,6 +13,15 @@
 
   var TS = 16;
 
+  /* Top speeds and how fast he gets there.  ACCEL is a hair under a second
+     from a standstill to a full skate, which is the window the acceleration
+     art needs to read; DECEL is much sharper so letting go still stops him
+     where you expect. */
+  var TOP_WALK = 106, TOP_DASH = 176;
+  var ACCEL = 200, DECEL = 620;
+  /* the fractions of top speed where the Air Shoes light up and then burn */
+  var FIRE_1 = 0.55, FIRE_2 = 0.86;
+
   function Overworld(mapId, opt) {
     opt = opt || {};
     this.mapId = mapId;
@@ -24,7 +33,7 @@
       vx: 0, vy: 0,
       face: 1,            // -1 / +1, only meaningful when dir === 'side'
       dir: 'down',        // 'side' | 'down' | 'up'
-      anim: 0, moving: false, skating: false
+      anim: 0, moving: false, skating: false, spd: 0, charge: 0
     };
     this.walked = 0;
     this.nextEnc = this.rollEncDistance();
@@ -348,10 +357,20 @@
     var ax = SH.Input.axis();
     /* with 항상 대시 on, the key inverts into a precision walk */
     var dash = SH.Input.down('cancel') !== SH.Settings.autoDash;
-    var speed = (dash ? 176 : 106) * SH.Settings.speedMul() * dt;
     var p = this.player;
     p.moving = !!(ax.x || ax.y);
     p.skating = p.moving && dash;
+
+    /* Speed ramps the way it does in the series - you do not get top speed
+       for free the instant you touch the key, you build to it.  The skate
+       art is staged off the same ramp, so the fire lights as he winds up
+       rather than switching on with the pose. */
+    var top = p.moving ? (dash ? TOP_DASH : TOP_WALK) : 0;
+    if (p.spd < top) p.spd = Math.min(top, p.spd + ACCEL * dt);
+    else if (p.spd > top) p.spd = Math.max(top, p.spd - DECEL * dt);
+    p.charge = SH.clamp(p.spd / TOP_DASH, 0, 1);
+
+    var speed = p.spd * SH.Settings.speedMul() * dt;
     if (ax.x && ax.y) speed *= 0.72;
     /* horizontal input wins the facing, so a diagonal keeps the profile */
     if (ax.x) { p.dir = 'side'; p.face = ax.x > 0 ? 1 : -1; }
@@ -363,7 +382,7 @@
          at dash speed churned the feet three times a second, which reads as
          sprinting; a skater pushes about once a second and glides between
          pushes, and the ground speed comes from the glide, not the legs. */
-      p.anim += dt * (dash ? 4.2 : 9);
+      p.anim += dt * (p.skating ? 4.2 : 9);
       /* divided by the speed setting so 매우 빠름 covers more map per
          encounter instead of running into more of them */
       var dist = speed * Math.hypot(ax.x, ax.y) / SH.Settings.speedMul();
@@ -452,7 +471,11 @@
     var sheet = SH.Game.superForm ? 'shadow_super_ow' : 'shadow_ow';
     var pre = p.dir === 'down' ? 'down_' : (p.dir === 'up' ? 'up_' : '');
     var anim, phase;
-    if (p.skating) { anim = pre + 'skate'; phase = p.anim; }
+    if (p.skating) {
+      var lvl = p.charge >= FIRE_2 ? 2 : (p.charge >= FIRE_1 ? 1 : 0);
+      anim = pre + 'skate' + lvl;
+      phase = p.anim;
+    }
     else if (p.moving) { anim = pre + 'walk'; phase = p.anim; }
     else { anim = pre + 'idle'; phase = SH.time * 3; }
     var f = SH.frameOf(sheet, anim, phase);

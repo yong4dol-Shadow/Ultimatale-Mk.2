@@ -94,26 +94,36 @@ def build():
     emit('tails', hog_frames('tails'), chars.TAILS_PAL, frame_names=hog_names)
 
     # ---- compact overworld builds --------------------------------------
+    # Three skate cycles per facing, one per stage of the acceleration: no
+    # fire, heel vents, then the full plume.  The overworld picks the stage
+    # from how close the player is to top speed.
     def ow_frames(kind):
         f = []
         for facing in ('side', 'down', 'up'):
             f += [chars.hedgehog_small(kind, 'idle', 0.0, facing),
                   chars.hedgehog_small(kind, 'idle', 0.5, facing)]
             f += [chars.hedgehog_small(kind, 'walk', i / 4.0, facing) for i in range(4)]
-            f += [chars.hedgehog_small(kind, 'skate', i / 4.0, facing) for i in range(4)]
+            for lvl in range(3):
+                f += [chars.hedgehog_small(kind, 'skate%d' % lvl, i / 4.0, facing)
+                      for i in range(4)]
         return f
 
-    # ten frames per facing: idle x2, walk x4, skate x4
+    # eighteen frames per facing: idle x2, walk x4, skate0/1/2 x4 each
     ow_names = {}
     for fi, pre in enumerate(('', 'down_', 'up_')):
-        b = fi * 10
+        b = fi * 18
         ow_names[pre + 'idle'] = [b, b + 1]
         ow_names[pre + 'walk'] = [b + 2, b + 3, b + 4, b + 5]
-        ow_names[pre + 'skate'] = [b + 6, b + 7, b + 8, b + 9]
+        for lvl in range(3):
+            c = b + 6 + lvl * 4
+            ow_names[pre + 'skate%d' % lvl] = [c, c + 1, c + 2, c + 3]
+        # `skate` without a stage is the full burn, which is what the sheet
+        # meant before the stages existed
+        ow_names[pre + 'skate'] = ow_names[pre + 'skate2']
     ow_names['attack'] = [0]
     ow_names['hurt'] = [1]
-    emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, cols=10, frame_names=ow_names)
-    emit('shadow_super_ow', ow_frames('shadow'), chars.SUPER_PAL, cols=10, frame_names=ow_names)
+    emit('shadow_ow', ow_frames('shadow'), chars.SHADOW_PAL, cols=12, frame_names=ow_names)
+    emit('shadow_super_ow', ow_frames('shadow'), chars.SUPER_PAL, cols=12, frame_names=ow_names)
 
     # ---- G.U.N. --------------------------------------------------------
     gun = [E.gun_soldier(0.0), E.gun_soldier(0.5)]

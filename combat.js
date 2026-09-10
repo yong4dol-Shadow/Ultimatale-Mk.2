@@ -643,7 +643,10 @@
         self.say([{ text: 'MISS! 총알이 빗나갔다.' }], function () { self.startEnemyTurn(); });
         return;
       }
-      var mult = { PERFECT: 2.2, GREAT: 1.6, GOOD: 1.15 }[grade];
+      /* A perfect shot is free and repeatable, so it sits UNDER a 40 TP
+         lance rather than trading with it - at 2.2x it was landing within a
+         point of one and the bar had nothing to sell. */
+      var mult = { PERFECT: 1.95, GREAT: 1.45, GOOD: 1.1 }[grade];
       var dmg = Math.max(1, Math.round((G.atk + SH.rand(-2, 2)) * mult - e.def_));
       self.hitEnemy(e, dmg, 'shot');
       self.gainTp(8, { x: e.x, y: GROUND - 40 });

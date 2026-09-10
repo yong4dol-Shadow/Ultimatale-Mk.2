@@ -237,11 +237,17 @@ def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
 OW_W, OW_H = 34, 30
 OW_GROUND = 29
 
+# Bigger than it looks like it should be: on an eleven-pixel head a four-row
+# eye is a dot, and next to any muzzle at all the face reads as all snout.
+# Same balance rule as the battle head - sclera and iris near even, iris
+# forward - and the cut bottom-back corner slants the lower lid into the
+# slight glare the source sprites have.
 EYE_S = [
-    '.OOO.',
-    'OSSIO',
-    'OSIeO',
-    '.OOO.',
+    '.OOOO.',
+    'OOSSIO',
+    'OSSIeO',
+    '.SSIIO',
+    '..OOO.',
 ]
 
 # The small build follows the same rule as the battle head, but it has half
@@ -249,16 +255,17 @@ EYE_S = [
 # the black nose wedge steps outside it.  Letting the tan itself clear the
 # silhouette is what made the overworld sprite look snouted.
 #
-# It is also carried HIGH, level with the eye, and kept to three columns by
-# four rows.  A tall tan mass hanging down the front of an eleven-pixel head
-# reads as a mole's snout no matter how far back it is tucked - the muzzle
-# has to be small as well as tucked.  The nose is the same five pixels it
-# always was; it is pushed further forward, not made bigger.
+# It is also carried HIGH, level with the eye, and kept small.  A tall tan
+# mass hanging down the front of an eleven-pixel head reads as a mole's
+# snout no matter how far back it is tucked - the muzzle has to be small as
+# well as tucked.  And the nose is TWO pixels: at this scale that is enough
+# to break the silhouette by one pixel, which is all a Sonic-series nose
+# does.  Five pixels of nose on an eleven-pixel head is a beak.
 MUZZLE_S = [
-    '.MM...',
-    'MMMN..',
-    'MMMNNN',
-    '.mMN..',
+    'MM...',
+    'MMMN.',
+    'MMMN.',
+    '.mM..',
 ]
 
 
@@ -304,7 +311,7 @@ def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
         # the Air Shoes' heel vents.  Small, and drawn BEFORE the boot so it
         # licks out from under the sole - the big plume behind the skater is
         # still what carries the thrust, this is only the spill.
-        _jet(cv, fx - 1.8, fy + 0.5, phase / (math.pi * 2), -1, jet)
+        _jet(cv, fx - 2.6, fy + 0.1, phase / (math.pi * 2), -1, jet)
     cv.taper_line(hx, hy, fx, fy - 1.0, 1.7, 1.3, fur)
     cv.ellipse(fx + 0.4, fy - 0.2, 2.8, 1.6, shoe)
     cv.ellipse(fx + 1.4, fy - 0.6, 1.6, 1.1, accent)
@@ -329,7 +336,23 @@ FRONT_MUZZLE = [
 ]
 
 
-def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=False):
+def _skate_level(pose):
+    """How far into the acceleration the skate pose is.
+
+    Returns (skating, level).  Level 0 is the pose with no fire at all, 1
+    lights the heel vents, 2 adds the plume off the back.  Shadow builds up
+    to top speed the way the series does, so the fire has to build with it -
+    dropping straight into a full burn the instant you touch the key is what
+    made the dash look like a toggle rather than an acceleration.
+    """
+    if not pose.startswith('skate'):
+        return False, 0
+    tail = pose[5:]
+    return True, int(tail) if tail else 2
+
+
+def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide,
+             skate=False, level=2):
     """Torso, arms and legs shared by all three overworld facings.
 
     `wide` spreads the limbs for the front and back views, where both of
@@ -337,7 +360,7 @@ def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=Fals
     """
     ln = 6.3 if skate else 6.5
     st = 5.6 if skate else 4.0
-    vent = 0.34 if skate else 0.0
+    vent = 0.34 if (skate and level >= 1) else 0.0
     if wide:
         _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, skate, vent)
         _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, skate, vent)
@@ -356,8 +379,9 @@ def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=Fals
 
 
 def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
+    skating, level = _skate_level(pose)
     bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
-    if pose == 'skate':
+    if skating:
         # leaned forward over the Air Shoes, riding low and level - the
         # body barely rises, which is what separates a glide from a run
         hx, hy = 20.8, 10.6 - abs(math.sin(ang)) * 0.25
@@ -370,7 +394,7 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
 
     if pose == 'walk':
         leg_a, leg_b, arm = ang, ang + math.pi, math.sin(ang + math.pi)
-    elif pose == 'skate':
+    elif skating:
         # The feet alternate push and glide and neither leaves the ground, so
         # the only thing separating the frames is how far apart they are.
         # Half-cycle opposition puts both feet at the zero crossing at once,
@@ -389,35 +413,37 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
         'tails':  ((-2.6, -4.2, 216, 4.8, 1.5), (-3.4, -1.6, 198, 5.4, 1.6),
                    (-3.0, 1.0, 174, 5.0, 1.5)),
     }[kind]
-    swept = 7 if pose == 'skate' else 0        # quills stream back at speed
+    swept = 7 if skating else 0                # quills stream back at speed
     for dx, dy, deg, ln, w0 in spec:
         _quill(cv, hx + dx, hy + dy, deg - swept, ln, w0, 0.7, stripe=striped)
     cv.taper_line(tx - 3, hip - 2, tx - 6, hip - 4, 1.4, 0.5, 'F')
 
-    if pose == 'skate':
-        _jet(cv, 14.5, 25.5, t_phase, -1, 1.0)
-    _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False, pose == 'skate')
+    if skating and level >= 2:
+        # anchored behind the rearmost heel, not between the feet
+        _jet(cv, 12.6, 25.2, t_phase, -1, 1.0)
+    _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm, striped, False, skating, level)
 
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
-    cv.stamp(MUZZLE_S, hx + 1.2, hy - 1.6)
-    cv.stamp(EYE_S, hx - 2.0, hy - 4.0, {'I': 'E'})
+    cv.stamp(MUZZLE_S, hx + 2.4, hy - 2.0)
+    cv.stamp(EYE_S, hx - 2.2, hy - 4.4, {'I': 'E'})
     if striped:
-        cv.px(hx - 1.0, hy - 5.0, 'R')
-        cv.px(hx + 0.0, hy - 5.0, 'R')
+        cv.px(hx - 1.0, hy - 5.4, 'R')
+        cv.px(hx + 0.0, hy - 5.4, 'R')
 
 
 
 def _ow_front(cv, kind, pose, ang, striped, back, t_phase=0.0):
     """Front (walking toward the camera) or back (walking away)."""
+    skating, level = _skate_level(pose)
     bob = -abs(math.sin(ang)) * 0.8 if pose == 'walk' else 0.0
-    hx, hy = 17.0, 9.0 + bob + (1.0 if pose == 'skate' else 0.0)
+    hx, hy = 17.0, 9.0 + bob + (1.0 if skating else 0.0)
     tx, ty = 17.0, 17.2 + bob * 0.6
     hip = 20.2 + bob * 0.5
 
     if pose == 'walk':
         leg_a, leg_b = ang, ang + math.pi
-    elif pose == 'skate':
+    elif skating:
         leg_a, leg_b = ang + math.pi / 2, ang - math.pi / 2
     else:
         leg_a, leg_b = 0.4, -0.4
@@ -438,10 +464,10 @@ def _ow_front(cv, kind, pose, ang, striped, back, t_phase=0.0):
                         hy - 2.8 + i * 2.2 + math.sin(a) * (ln - i * 0.6 - 1.4), 'R')
     _quill(cv, hx, hy - 3.8, 270, 3.0, 1.9, 0.8)
 
-    if pose == 'skate':
+    if skating and level >= 2:
         _jet(cv, hx - 4.5, 26.5, t_phase, -1, 0.6)
         _jet(cv, hx + 4.5, 26.5, t_phase + 0.5, 1, 0.6)
-    _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True, pose == 'skate')
+    _ow_body(cv, tx, ty, hip, leg_a, leg_b, 0, striped, True, skating, level)
     cv.ellipse(tx, ty - 1.0, 2.4, 2.6, 'w' if back else 'W')      # chest / back fur
 
     cv.ellipse(hx, hy, 6.4, 5.6, 'F')                              # skull

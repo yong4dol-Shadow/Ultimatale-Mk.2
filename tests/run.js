@@ -134,27 +134,62 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('overworld sprite is smaller than the battle sprite',
     !!sprites && sprites.ow[1] < sprites.big[1] && sprites.ow[0] < sprites.big[0]);
 
-  /* ---- movement speed ------------------------------------------------ */
+  /* ---- movement speed and the acceleration ramp ----------------------- */
   const moved = await page.evaluate(async () => {
-    const walk = async (secs) => {
-      const o = SH.scenes[SH.scenes.length - 1];
+    const o = () => SH.scenes[SH.scenes.length - 1];
+    /* `warm` seconds of run-up, then measure over `secs` - speed ramps now,
+       so a measurement from a standstill reads the ramp, not the top speed */
+    const walk = async (secs, warm) => {
+      const s = o();
       // start from the map's own spawn: a hard-coded tile can end up
       // inside a building once the layouts change
-      o.player.x = o.map.spawn.x; o.player.y = o.map.spawn.y;
-      const start = o.player.x;
-      const t0 = performance.now();
+      s.player.x = s.map.spawn.x; s.player.y = s.map.spawn.y;
+      s.player.spd = 0;
       SH.Input.state.right = true;
+      if (warm) await new Promise(r => setTimeout(r, warm * 1000));
+      const start = s.player.x, t0 = performance.now();
       await new Promise(r => setTimeout(r, secs * 1000));
       SH.Input.state.right = false;
       const dt = (performance.now() - t0) / 1000;
-      return (o.player.x - start) / dt;
+      return (s.player.x - start) / dt;
     };
-    SH.Settings.move = 0; const slow = await walk(0.5);
-    SH.Settings.move = 2; const fast = await walk(0.5);
     SH.Settings.move = 0;
-    return { slow: slow, fast: fast };
+    const slow = await walk(0.5, 1.2);
+    const opening = await walk(0.16, 0);          // straight off the mark
+    SH.Settings.move = 2; const fast = await walk(0.5, 1.2);
+    SH.Settings.move = 0;
+    return { slow: slow, fast: fast, opening: opening };
   });
-  check('base walk speed is above 90 px/s', moved.slow > 90);
+  check('sustained walk speed is above 90 px/s', moved.slow > 90);
+  check('speed ramps up instead of starting at the top',
+    moved.opening < moved.slow * 0.6);
+
+  /* the Air Shoes light in stages off that same ramp */
+  const fire = await page.evaluate(async () => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const s = SH.Assets.sheet('shadow_ow');
+    o.player.x = o.map.spawn.x; o.player.y = o.map.spawn.y;
+    o.player.spd = 0;
+    SH.Input.state.right = true; SH.Input.state.cancel = true;   // dash
+    const seen = [];
+    for (let i = 0; i < 26; i++) {
+      await new Promise(r => setTimeout(r, 50));
+      const p = o.player;
+      seen.push(p.charge >= 0.86 ? 2 : (p.charge >= 0.55 ? 1 : 0));
+    }
+    SH.Input.state.right = false; SH.Input.state.cancel = false;
+    return {
+      stages: seen, first: seen[0], last: seen[seen.length - 1],
+      named: [0, 1, 2].every(l => s.names['skate' + l] &&
+                                  s.names['skate' + l].length === 4),
+      /* the full-burn cycle is still what plain `skate` means */
+      alias: s.names.skate.join() === s.names.skate2.join()
+    };
+  });
+  check('the sheet carries three skate stages of four frames each', fire.named);
+  check('plain `skate` still means the full burn', fire.alias);
+  check('the Air Shoes start cold and reach a full burn',
+    fire.first === 0 && fire.last === 2 && fire.stages.includes(1));
   check('the fast option moves noticeably faster', moved.fast > moved.slow * 1.3);
 
   /* ---- facing follows the input, and dashing uses the skate pose ----- */
@@ -669,17 +704,20 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     };
     /* average out the +-2 roll on each path */
     const avg = fn => { let s = 0; for (let i = 0; i < 60; i++) s += fn(); return s / 60; };
-    const great = avg(() => run(11, (b, e) => {
-      b.bar = { x: 0.2, target: e };          // acc 0.8 -> GREAT
+    const shot = acc => avg(() => run(11, (b, e) => {
+      b.bar = { x: 1 - acc, target: e };
       b.resolveAttack();
       b.pendingShot();
     }));
+    const great = shot(0.8), perfect = shot(0.98);
     const lance = avg(() => run(11, b => b.doSpear()));
     const blast = avg(() => run(11, b => b.doBlast()));
-    return { great, lance, blast };
+    return { great, perfect, lance, blast };
   });
   check('a Chaos Spear out-damages a GREAT-timed sidearm shot',
-    dmgCmp.lance > dmgCmp.great * 1.25);
+    dmgCmp.lance > dmgCmp.great * 1.4);
+  check('and stays ahead of even a PERFECT one, which is free',
+    dmgCmp.lance > dmgCmp.perfect * 1.15);
   check('but stays well short of a Chaos Blast',
     dmgCmp.lance < dmgCmp.blast * 0.75);
 
