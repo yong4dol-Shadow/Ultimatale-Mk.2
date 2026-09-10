@@ -576,7 +576,7 @@
     items.push({
       label: '카오스 스피어 (TP40)', color: '#7fdcff',
       enabled: G.tp >= 40, value: { kind: 'spear' },
-      desc: '적 전체에게 카오스 에너지를 꽂는다.'
+      desc: '적 전체를 관통한다.  방어를 절반만 계산한다.'
     });
     items.push({
       label: '카오스 블래스트 (TP100)', color: '#ff8a1f',
@@ -675,7 +675,7 @@
     }
     if (before < 40 && G.tp >= 40) {
       this.tpFlash = 1.0;
-      SH.Tips.show('bt_tp40', 'TP 40!  ACT 목록에서 카오스 스피어(적 전체 관통)를 쏠 수 있다.');
+      SH.Tips.show('bt_tp40', 'TP 40!  ACT 의 카오스 스피어는 적 전체를 관통하고 방어를 절반만 계산한다.');
     }
     if (before < 100 && G.tp >= 100) {
       this.tpFlash = 1.2;
@@ -746,7 +746,13 @@
       var lines = [{ text: '카오스... 스피어!' }];
       targets.forEach(function (e) {
         if (!e.alive) return;
-        var dmg = Math.max(1, Math.round(G.atk * 1.5 - e.def_));
+        /* A lance is worth its 40 TP only if it beats a well-timed normal
+           shot: 2.2x attack, and being an energy lance it runs through
+           half the target's DEF.  At 1.5x with full DEF applied it landed
+           under a GREAT-timed sidearm hit and there was no reason to spend
+           the bar on it. */
+        var dmg = Math.max(1, Math.round(G.atk * 2.2 + SH.rand(-2, 2)
+                                         - e.def_ * 0.5));
         self.hitEnemy(e, dmg, 'spear');
         lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지.' });
         if (!e.alive) lines.push({ text: e.def.onKill });

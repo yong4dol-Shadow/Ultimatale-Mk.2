@@ -359,7 +359,11 @@
     if (p.moving) {
       this.tryMove(ax.x * speed, 0);
       this.tryMove(0, ax.y * speed);
-      p.anim += dt * (dash ? 13 : 9);
+      /* The skate cycle runs SLOWER than the walk, not faster.  Driving it
+         at dash speed churned the feet three times a second, which reads as
+         sprinting; a skater pushes about once a second and glides between
+         pushes, and the ground speed comes from the glide, not the legs. */
+      p.anim += dt * (dash ? 4.2 : 9);
       /* divided by the speed setting so 매우 빠름 covers more map per
          encounter instead of running into more of them */
       var dist = speed * Math.hypot(ax.x, ax.y) / SH.Settings.speedMul();

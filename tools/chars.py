@@ -168,15 +168,17 @@ def _twin_tails(cv, x, y, phase):
 # small bump. Idle sprites carry no mouth at all.
 #   O outline   S sclera   I iris   e pupil
 #   M muzzle    m shade    N nose   n nose highlight
-# In the source sprites the RED IRIS carries the eye and the white is a
-# sliver at the back corner.  Drawn the other way round - a big white
-# sclera with a two-pixel iris - it read as a startled cartoon eye.
+# Iris and sclera are close to even, iris forward.  Both extremes are
+# wrong: a two-pixel iris in a big white sclera is a startled cartoon eye,
+# and an iris that fills the socket is a solid red blob.  The extra outline
+# pixel at the top-back corner drops the lid into a slight glare, which is
+# all the sharpness the source sprites have.
 EYE = [
     '.OOOOO..',
-    'OSSIIIO.',
-    'OSSIIIeO',
-    '.SSIIIeO',
-    '..OIIIIO',
+    'OOSSIIO.',
+    'OSSSIIeO',
+    '.SSSIIeO',
+    '..OSSIIO',
     '...OOOO.',
 ]
 
@@ -246,12 +248,17 @@ EYE_S = [
 # the pixels to say it with: the tan stays INSIDE the skull circle and only
 # the black nose wedge steps outside it.  Letting the tan itself clear the
 # silhouette is what made the overworld sprite look snouted.
+#
+# It is also carried HIGH, level with the eye, and kept to three columns by
+# four rows.  A tall tan mass hanging down the front of an eleven-pixel head
+# reads as a mole's snout no matter how far back it is tucked - the muzzle
+# has to be small as well as tucked.  The nose is the same five pixels it
+# always was; it is pushed further forward, not made bigger.
 MUZZLE_S = [
-    '..MMM..',
-    '.MMMMN.',
-    'MMMMNNN',
-    'MMMMN..',
-    '.mMm...',
+    '.MM...',
+    'MMMN..',
+    'MMMNNN',
+    '.mMN..',
 ]
 
 
@@ -287,12 +294,17 @@ def _jet(cv, x, y, phase=0.0, back=-1, size=1.0):
 
 
 def _small_leg(cv, hx, hy, phase, fur, shoe, accent,
-               length=6.5, stride=4.0, glide=False):
+               length=6.5, stride=4.0, glide=False, jet=0.0):
     swing = math.sin(phase)
     # a running leg lifts; a skating leg stays on the floor and slides out
     lift = 0.0 if glide else max(0.0, math.cos(phase)) * 2.0
     fx = hx + swing * stride
     fy = hy + length - lift
+    if jet:
+        # the Air Shoes' heel vents.  Small, and drawn BEFORE the boot so it
+        # licks out from under the sole - the big plume behind the skater is
+        # still what carries the thrust, this is only the spill.
+        _jet(cv, fx - 1.8, fy + 0.5, phase / (math.pi * 2), -1, jet)
     cv.taper_line(hx, hy, fx, fy - 1.0, 1.7, 1.3, fur)
     cv.ellipse(fx + 0.4, fy - 0.2, 2.8, 1.6, shoe)
     cv.ellipse(fx + 1.4, fy - 0.6, 1.6, 1.1, accent)
@@ -325,16 +337,17 @@ def _ow_body(cv, tx, ty, hip, leg_a, leg_b, arm_swing, striped, wide, skate=Fals
     """
     ln = 6.3 if skate else 6.5
     st = 5.6 if skate else 4.0
+    vent = 0.34 if skate else 0.0
     if wide:
-        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, skate)
-        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, skate)
+        _small_leg(cv, tx - 2.4, hip, leg_b, 'f', 'f', 'c', ln, st * 0.5, skate, vent)
+        _small_leg(cv, tx + 2.4, hip, leg_a, 'F', 'F', 'C', ln, st * 0.5, skate, vent)
         cv.taper_line(tx - 4.0, ty - 1, tx - 4.8, ty + 3.6, 1.4, 1.1, 'f')
         cv.circle(tx - 4.8, ty + 4.4, 1.5, 'w')
         cv.taper_line(tx + 4.0, ty - 1, tx + 4.8, ty + 3.6, 1.5, 1.2, 'F')
         cv.circle(tx + 4.8, ty + 4.4, 1.6, 'W')
     else:
-        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r', ln, st, skate)
-        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C', ln, st, skate)
+        _small_leg(cv, tx - 0.4, hip, leg_b, 'f', 'f', 'r', ln, st, skate, vent)
+        _small_leg(cv, tx + 1.4, hip, leg_a, 'F', 'F', 'C', ln, st, skate, vent)
         cv.taper_line(tx + 0.6, ty - 1, tx - 1.4, ty + 4, 1.4, 1.1, 'f')
         cv.taper_line(tx + 2.2, ty - 1.2, tx + 2.2 + arm_swing * 3.0, ty + 4.0, 1.5, 1.2, 'F')
         cv.circle(tx + 2.2 + arm_swing * 3.0, ty + 4.6, 1.6, 'W')
@@ -387,7 +400,7 @@ def _ow_side(cv, kind, pose, ang, striped, t_phase=0.0):
 
     cv.ellipse(hx, hy, 5.6, 5.2, 'F')
     cv.poly([(hx - 3.0, hy - 3.6), (hx - 1.4, hy - 7.0), (hx + 1.4, hy - 4.0)], 'F')
-    cv.stamp(MUZZLE_S, hx + 0.4, hy - 1.0)
+    cv.stamp(MUZZLE_S, hx + 1.2, hy - 1.6)
     cv.stamp(EYE_S, hx - 2.0, hy - 4.0, {'I': 'E'})
     if striped:
         cv.px(hx - 1.0, hy - 5.0, 'R')

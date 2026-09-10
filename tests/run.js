@@ -655,6 +655,34 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     spear.sheets.includes('fx_flare') && !spear.sheets.includes('fx_slash'));
   check('every lance lands its damage', spear.dealt.every(d => d > 0));
 
+  /* A lance costs 40 TP, so it has to beat the sidearm shot the player can
+     land for free - it used to come in under a GREAT-timed one. */
+  const dmgCmp = await page.evaluate(() => {
+    const run = (atk, setup) => {
+      const b = new SH.Battle(['black_oak'], {});
+      const e = b.enemies[0];
+      SH.Game.atk = atk; SH.Game.tp = 100;
+      const hp0 = e.hp;
+      setup(b, e);
+      for (let i = 0; i < 400 && b.state === 'chaosfx'; i++) b.update(1 / 60);
+      return hp0 - e.hp;
+    };
+    /* average out the +-2 roll on each path */
+    const avg = fn => { let s = 0; for (let i = 0; i < 60; i++) s += fn(); return s / 60; };
+    const great = avg(() => run(11, (b, e) => {
+      b.bar = { x: 0.2, target: e };          // acc 0.8 -> GREAT
+      b.resolveAttack();
+      b.pendingShot();
+    }));
+    const lance = avg(() => run(11, b => b.doSpear()));
+    const blast = avg(() => run(11, b => b.doBlast()));
+    return { great, lance, blast };
+  });
+  check('a Chaos Spear out-damages a GREAT-timed sidearm shot',
+    dmgCmp.lance > dmgCmp.great * 1.25);
+  check('but stays well short of a Chaos Blast',
+    dmgCmp.lance < dmgCmp.blast * 0.75);
+
   /* ---- Chaos Control plays a sequence and still freezes the next turn - */
   const control = await page.evaluate(() => {
     const b = new SH.Battle(['gun_soldier'], {});
