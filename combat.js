@@ -15,11 +15,15 @@
 
   var GROUND = 124;
   var BOX = { x: 60, y: 130, w: 200, h: 82 };
+  /* UNDERTALE's command buttons are all one colour and the cursor is the
+     only thing that changes: orange at rest, yellow on the selected one.
+     Four different colours made the row read as four unrelated widgets. */
+  var BTN_OFF = '#ff8a1f', BTN_ON = '#ffef5a';
   var BTN = [
-    { key: 'FIGHT', label: 'FIGHT', icon: 'icon_fight', color: '#ff5a5a' },
-    { key: 'ACT',   label: 'ACT',   icon: 'icon_act',   color: '#ffd23f' },
-    { key: 'ITEM',  label: 'ITEM',  icon: 'icon_item',  color: '#7fdcff' },
-    { key: 'MERCY', label: 'MERCY', icon: 'icon_mercy', color: '#7dff9b' }
+    { key: 'FIGHT', label: 'FIGHT', icon: 'icon_fight' },
+    { key: 'ACT',   label: 'ACT',   icon: 'icon_act' },
+    { key: 'ITEM',  label: 'ITEM',  icon: 'icon_item' },
+    { key: 'MERCY', label: 'MERCY', icon: 'icon_mercy' }
   ];
 
   /* ==================================================================
@@ -416,6 +420,10 @@
     if (kind === 'shot') {
       this.addFx('fx_hit', e.x + SH.rand(-4, 4), by + SH.rand(-5, 5), 3, 0.18);
       SH.shake(3, 0.12);
+    } else if (kind === 'spear') {
+      /* the lance set them alight as it punched through, back during the
+         flight; a second effect here would just double up */
+      SH.shake(3, 0.1);
     } else {
       this.addFx('fx_slash', e.x, by, 3, 0.24);
       SH.shake(4, 0.18);
@@ -710,25 +718,36 @@
     SH.Audio.sfx('chaos');
     SH.flash('#ffe066', 0.3);
     SH.shake(5, 0.35);
-    this.setPose('attack', 1.4);
+    this.setPose('attack', 1.6);
     this.state = 'chaosfx';
-    /* long enough for the last staggered lance to land */
-    this.fxTimer = 0.62 + this.living().length * 0.14;
-    /* charge glow at the hand before the throw */
-    this.addBurst({ x: 84, y: GROUND - 40, kind: 'charge', r0: 14, r1: 2,
+    /* long enough for the last staggered lance to land and burn */
+    this.fxTimer = 0.95 + this.living().length * 0.16;
+    /* charge: two counter-rotating rings collapsing into the hand, then a
+       gold flash - the single small ring read as a loading spinner */
+    this.addBurst({ x: 84, y: GROUND - 40, kind: 'charge', r0: 26, r1: 2,
+                    dur: 0.34, col: '#ffd23f', col2: '#ffffff' });
+    this.addBurst({ x: 84, y: GROUND - 40, kind: 'charge', r0: 17, r1: 3,
+                    dur: 0.28, col: '#ffffff', col2: '#ff8a1f' });
+    this.addBurst({ x: 84, y: GROUND - 40, kind: 'ring', r0: 22, r1: 3,
                     dur: 0.3, col: '#ffd23f', col2: '#ffffff' });
 
     var targets = this.living();
     this.spears = targets.map(function (e, i) {
-      return { x: 84, y: GROUND - 40, tx: e.x, ty: GROUND - 26,
-               t: -0.28 - i * 0.14, dur: 0.26, e: e, done: false };
+      var ty = self.bodyY(e);
+      /* the lance does not stop at the target - it runs it through and
+         carries on off-screen, which is what makes it read as a spear
+         rather than a bullet */
+      return { x: 84, y: GROUND - 40, tx: e.x, ty: ty,
+               ex: e.x + (e.x - 84) * 0.55, ey: ty + (ty - (GROUND - 40)) * 0.55,
+               t: -0.34 - i * 0.16, dur: 0.24, hitAt: 0.24, over: 0.2,
+               e: e, done: false };
     });
     this.pendingChaos = function () {
       var lines = [{ text: '카오스... 스피어!' }];
       targets.forEach(function (e) {
         if (!e.alive) return;
         var dmg = Math.max(1, Math.round(G.atk * 1.5 - e.def_));
-        self.hitEnemy(e, dmg);
+        self.hitEnemy(e, dmg, 'spear');
         lines.push({ text: e.name + ' 에게 ' + dmg + ' 데미지.' });
         if (!e.alive) lines.push({ text: e.def.onKill });
       });
@@ -881,17 +900,32 @@
         var anyLanded = false;
         this.spears.forEach(function (sp) {
           sp.t += dt;
-          if (!sp.done && sp.t >= sp.dur) {
-            sp.done = true;
+          /* `done` retires the lance once it has flown clear of the target;
+             the strike itself fires the moment it reaches them */
+          if (!sp.struck && sp.t >= sp.hitAt) {
+            sp.struck = true;
             anyLanded = true;
-            self.addBurst({ x: sp.tx, y: sp.ty, kind: 'ring', r0: 3, r1: 22,
-                            dur: 0.3, col: '#ffd23f', col2: '#ffffff' });
-            self.addBurst({ x: sp.tx, y: sp.ty, kind: 'spark', n: 8, r1: 26,
-                            dur: 0.34, col: '#ffe066' });
-            SH.shake(4, 0.16);
+            /* a quick thin ring - a slow fat one leaves a dark disc sitting
+               on top of the enemy, because the ring is drawn as alternating
+               filled ellipses */
+            self.addBurst({ x: sp.tx, y: sp.ty, kind: 'ring', r0: 3, r1: 30,
+                            dur: 0.24, col: '#ffd23f', col2: '#ffffff' });
+            self.addBurst({ x: sp.tx, y: sp.ty, kind: 'spark', n: 14, r1: 46,
+                            dur: 0.42, col: '#ffe066' });
+            /* the wound catches fire: one flame on the body and two smaller
+               ones offset, staggered so it flickers */
+            self.addFx('fx_flare', sp.tx, sp.ty, 4, 0.42);
+            self.fx.push({ sheet: 'fx_flare', x: sp.tx - 6, y: sp.ty + 4,
+                           n: 4, t: -0.09, dur: 0.36 });
+            self.fx.push({ sheet: 'fx_flare', x: sp.tx + 5, y: sp.ty - 3,
+                           n: 4, t: -0.16, dur: 0.34 });
+            sp.e.flash = 0.4;
+            sp.e.shakeT = 0.35;
+            SH.shake(6, 0.2);
           }
+          if (!sp.done && sp.t >= sp.hitAt + sp.over) sp.done = true;
         });
-        if (anyLanded) SH.Audio.sfx('hit');
+        if (anyLanded) SH.Audio.sfx('slash');
         /* the blast's shockwave, fired once when the ring reaches the line */
         if (this.blastAt !== undefined && this.fxTimer <= 1.15 - this.blastAt) {
           this.blastAt = undefined;
@@ -1135,22 +1169,68 @@
       SH.ctx.restore();
     });
 
-    /* Chaos Spear lances in flight */
+    /* Chaos Spear lances in flight.  This used to be a 6x3 dash with a
+       dotted tail, which at 320x240 read as a thrown pencil.  It is drawn
+       as an actual lance now: a long tapered shaft with a white-hot core,
+       a gold aura, a barbed head and a wake of sparks. */
+    var anim = this.anim;
     this.spears.forEach(function (sp) {
       if (sp.t < 0 || sp.done) return;
-      var k2 = SH.clamp(sp.t / sp.dur, 0, 1);
-      var sxp = SH.lerp(sp.x, sp.tx, k2), syp = SH.lerp(sp.y, sp.ty, k2);
-      var ang2 = Math.atan2(sp.ty - sp.y, sp.tx - sp.x);
-      for (var t2 = 0; t2 < 7; t2++) {            /* the lance and its trail */
-        var tx2 = sxp - Math.cos(ang2) * t2 * 4;
-        var ty2 = syp - Math.sin(ang2) * t2 * 4;
-        var w2 = 6 - t2 * 0.7;
+      /* flight runs past the target, so k goes over 1 on the follow-through */
+      var k2 = Math.max(0, sp.t / sp.hitAt);
+      var ax = SH.lerp(sp.x, sp.ex, k2 * (sp.hitAt / (sp.hitAt + sp.over)));
+      var ay = SH.lerp(sp.y, sp.ey, k2 * (sp.hitAt / (sp.hitAt + sp.over)));
+      var ang2 = Math.atan2(sp.ey - sp.y, sp.ex - sp.x);
+      var cs = Math.cos(ang2), sn = Math.sin(ang2);
+      var px2 = -sn, py2 = cs;                    /* perpendicular */
+      var fade = sp.struck ? SH.clamp(1 - (sp.t - sp.hitAt) / sp.over, 0, 1) : 1;
+
+      function lance(len, half, col, alpha) {
         SH.ctx.save();
-        SH.ctx.globalAlpha = 1 - t2 / 8;
-        SH.rect(tx2 - w2 / 2, ty2 - 1.5, w2, 3, t2 === 0 ? '#ffffff' : '#ffd23f');
+        SH.ctx.globalAlpha = alpha * fade;
+        SH.ctx.beginPath();
+        SH.ctx.moveTo(ax + cs * 9, ay + sn * 9);                  /* tip */
+        SH.ctx.lineTo(ax + px2 * half, ay + py2 * half);
+        SH.ctx.lineTo(ax - cs * len + px2 * half * 0.25,
+                      ay - sn * len + py2 * half * 0.25);
+        SH.ctx.lineTo(ax - cs * len - px2 * half * 0.25,
+                      ay - sn * len - py2 * half * 0.25);
+        SH.ctx.lineTo(ax - px2 * half, ay - py2 * half);
+        SH.ctx.closePath();
+        SH.ctx.fillStyle = col;
+        SH.ctx.fill();
         SH.ctx.restore();
       }
-      SH.rect(sxp + 3, syp - 1, 5, 2, '#ffffff');
+
+      lance(30, 6.0, '#ff8a1f', 0.55);            /* orange aura */
+      lance(26, 4.2, '#ffd23f', 0.95);            /* gold shaft */
+      lance(17, 2.0, '#ffffff', 1);               /* white-hot core */
+
+      /* barbs, the pair of fins that make it a Chaos Spear and not a bolt */
+      SH.ctx.save();
+      SH.ctx.globalAlpha = 0.9 * fade;
+      for (var bd = -1; bd <= 1; bd += 2) {
+        SH.ctx.beginPath();
+        SH.ctx.moveTo(ax - cs * 3, ay - sn * 3);
+        SH.ctx.lineTo(ax - cs * 11 + px2 * bd * 8, ay - sn * 11 + py2 * bd * 8);
+        SH.ctx.lineTo(ax - cs * 13, ay - sn * 13);
+        SH.ctx.closePath();
+        SH.ctx.fillStyle = '#ffd23f';
+        SH.ctx.fill();
+      }
+      SH.ctx.restore();
+
+      /* wake: sparks shed along the path behind the shaft */
+      SH.ctx.save();
+      for (var w3 = 0; w3 < 9; w3++) {
+        var d3 = 14 + w3 * 6;
+        var off = Math.sin(anim * 30 + w3 * 1.7) * (2 + w3 * 0.7);
+        SH.ctx.globalAlpha = (1 - w3 / 9) * 0.7 * fade;
+        SH.rect(ax - cs * d3 + px2 * off, ay - sn * d3 + py2 * off,
+                3 - (w3 > 4 ? 1 : 0), 3 - (w3 > 4 ? 1 : 0),
+                w3 % 3 ? '#ffd23f' : '#ffffff');
+      }
+      SH.ctx.restore();
     });
 
     /* the tracer from Shadow's sidearm */
@@ -1176,6 +1256,7 @@
     }
 
     this.fx.forEach(function (f2) {
+      if (f2.t < 0) return;                 /* staggered: not lit yet */
       var i = Math.min(f2.n - 1, Math.floor(f2.t / f2.dur * f2.n));
       SH.drawC(f2.sheet, i, f2.x, f2.y, {});
     });
@@ -1216,10 +1297,12 @@
     BTN.forEach(function (b, i) {
       var x = 6 + i * 78, y = 216, w = 72, h = 22;
       var on = (self.state === 'menu' && self.btn === i);
+      var col = on ? BTN_ON : BTN_OFF;
       SH.rect(x, y, w, h, '#05050a');
-      SH.frameRect(x, y, w, h, on ? '#ffd23f' : b.color, 2);
-      SH.draw('hud', SH.frameOf('hud', b.icon, 0), x + 5, y + 3, { alpha: on ? 1 : 0.85 });
-      SH.text(b.label, x + 24, y + 6, { color: on ? '#ffd23f' : b.color, size: 10, bold: true });
+      SH.frameRect(x, y, w, h, col, 2);
+      SH.draw('hud', SH.frameOf('hud', b.icon + (on ? '_on' : ''), 0),
+              x + 5, y + 3, { alpha: on ? 1 : 0.9 });
+      SH.text(b.label, x + 24, y + 6, { color: col, size: 10, bold: true });
     });
   };
 

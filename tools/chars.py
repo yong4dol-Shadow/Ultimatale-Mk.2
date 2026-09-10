@@ -168,12 +168,15 @@ def _twin_tails(cv, x, y, phase):
 # small bump. Idle sprites carry no mouth at all.
 #   O outline   S sclera   I iris   e pupil
 #   M muzzle    m shade    N nose   n nose highlight
+# In the source sprites the RED IRIS carries the eye and the white is a
+# sliver at the back corner.  Drawn the other way round - a big white
+# sclera with a two-pixel iris - it read as a startled cartoon eye.
 EYE = [
     '.OOOOO..',
-    'OSSSIIO.',
-    'OSSSSIeO',
-    '.OSSSIeO',
-    '..OSSIIO',
+    'OSSIIIO.',
+    'OSSIIIeO',
+    '.SSIIIeO',
+    '..OIIIIO',
     '...OOOO.',
 ]
 
@@ -200,15 +203,18 @@ def _head(cv, hx, hy, pal_eye='E', ear=True, stripe_eye=False,
 
     if ear:                                                  # ear, upper back
         cv.poly([(hx - 4.8, hy - 5.8), (hx - 2.4, hy - 10.6), (hx + 1.8, hy - 6.4)], 'F')
-        cv.poly([(hx - 2.6, hy - 7.0), (hx - 2.2, hy - 8.4), (hx - 1.0, hy - 7.2)], 'm')
+        # inner ear in dark fur, not tan: at this size a skin-coloured
+        # triangle up behind the quills read as a stray blob of muzzle
+        cv.poly([(hx - 2.6, hy - 7.0), (hx - 2.2, hy - 8.4), (hx - 1.0, hy - 7.2)], 'f')
 
     cv.stamp(MUZZLE, hx + muzzle_dx, hy + muzzle_dy)
-    # jaw: the cheek line running back from the chin, and the fur under it.
-    # Without it the muzzle just melts into the head.
-    cv.line(hx + muzzle_dx + 1.0, hy + muzzle_dy + 5.4,
-            hx - 3.0, hy + 3.2, 'f')
-    cv.line(hx + muzzle_dx + 2.0, hy + muzzle_dy + 6.0,
-            hx - 2.0, hy + 4.4, 'O')
+    # Jaw.  It runs DOWN and back from the chin - drawn level it read as a
+    # bar painted across the cheek, which is the one thing a jaw must not
+    # do.  Cheek fur juts back off the end of it, the way it does on every
+    # Sonic-series side view.
+    cv.line(hx + 5.0, hy + 2.6, hx - 4.0, hy + 6.4, 'f')
+    cv.line(hx + 5.2, hy + 3.6, hx - 3.6, hy + 7.4, 'O')
+    cv.poly([(hx - 3.0, hy + 5.0), (hx - 9.0, hy + 7.6), (hx - 2.6, hy + 7.8)], 'F')
     cv.stamp(EYE, hx + eye_dx, hy + eye_dy, {'I': pal_eye})
 
     if stripe_eye:                                           # red rim on the lid

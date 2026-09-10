@@ -563,6 +563,34 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     impact.gun.includes('fx_hit') && !impact.gun.includes('fx_slash'));
   check('Chaos damage still uses the energy slash', impact.energy.includes('fx_slash'));
 
+  /* ---- the command row is UNDERTALE-uniform -------------------------- */
+  const btns = await page.evaluate(() => {
+    const b = new SH.Battle(['gun_soldier'], {});
+    SH.push(b);
+    b.msg = null;
+    const g = document.getElementById('screen').getContext('2d',
+      { willReadFrequently: true });
+    /* the frame colour of button i, read off the rendered buffer */
+    const frameCol = i => {
+      const d = g.getImageData(7 + i * 78, 217, 1, 1).data;
+      return d[0] + ',' + d[1] + ',' + d[2];
+    };
+    b.state = 'menu'; b.btn = 1; b.draw();
+    const withSel = [0, 1, 2, 3].map(frameCol);
+    const s = SH.Assets.sheet('hud');
+    SH.pop();
+    return {
+      cols: withSel,
+      pairs: ['icon_fight', 'icon_act', 'icon_item', 'icon_mercy']
+        .every(n => s.names[n] && s.names[n + '_on'])
+    };
+  });
+  check('unselected command buttons are all the same colour',
+    btns.cols[0] === btns.cols[2] && btns.cols[2] === btns.cols[3]);
+  check('the selected command button is the only different one',
+    btns.cols[1] !== btns.cols[0]);
+  check('each command icon has a selected variant', btns.pairs);
+
   /* ---- Chaos Blast and the renamed Chaos Control --------------------- */
   const chaos = await page.evaluate(() => {
     const b = new SH.Battle(['gun_soldier', 'gun_soldier'], {});
@@ -606,12 +634,25 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     b.doSpear();
     const inFlight = b.spears.length;
     const staggered = b.spears.length > 1 && b.spears[0].t !== b.spears[1].t;
-    for (let i = 0; i < 300 && b.state === 'chaosfx'; i++) b.update(1 / 60);
+    /* each lance ends up past its target, not on it - it runs them through */
+    const pierces = b.spears.every(s => Math.abs(s.ex - 84) > Math.abs(s.tx - 84));
+    const seen = {};
+    let struck = 0;
+    for (let i = 0; i < 300 && b.state === 'chaosfx'; i++) {
+      b.fx.forEach(f => { seen[f.sheet] = true; });
+      struck = Math.max(struck, b.spears.filter(s => s.struck).length);
+      b.update(1 / 60);
+    }
     const after = b.enemies.map(e => e.hp);
-    return { inFlight, staggered, dealt: before.map((h, i) => h - after[i]) };
+    return { inFlight, staggered, pierces, struck, sheets: Object.keys(seen),
+             dealt: before.map((h, i) => h - after[i]) };
   });
   check('Chaos Spear throws one lance per target',
     spear.inFlight === 2 && spear.staggered === true);
+  check('a lance runs its target through instead of stopping at them',
+    spear.pierces && spear.struck === 2);
+  check('the spear wound burns instead of being slashed',
+    spear.sheets.includes('fx_flare') && !spear.sheets.includes('fx_slash'));
   check('every lance lands its damage', spear.dealt.every(d => d > 0));
 
   /* ---- Chaos Control plays a sequence and still freezes the next turn - */

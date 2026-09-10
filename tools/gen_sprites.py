@@ -184,10 +184,12 @@ def build():
     for nm, c, d in U.EMERALD_COLORS:
         add(nm, U.emerald(c, d))
     add('ring', U.ring())
-    add('icon_fight', U.icon_fight())
-    add('icon_act', U.icon_act())
-    add('icon_item', U.icon_item())
-    add('icon_mercy', U.icon_mercy())
+    # each command icon twice: orange at rest, yellow when the cursor is on
+    # it - the UNDERTALE button treatment
+    for nm, fn in (('icon_fight', U.icon_fight), ('icon_act', U.icon_act),
+                   ('icon_item', U.icon_item), ('icon_mercy', U.icon_mercy)):
+        add(nm, U.mono(fn(), 'o', 'O3'))
+        add(nm + '_on', U.mono(fn(), 'Y2', 'Y'))
     emit('hud', hud, U.UI_PAL, cols=8, frame_names=hud_names, edge_check=False)
 
     # ---- large map props ------------------------------------------------
@@ -207,6 +209,7 @@ def build():
     emit('fx_slash', [U.slash(i) for i in range(3)], U.UI_PAL, edge_check=False)
     emit('fx_boom', [U.boom(i) for i in range(4)], U.UI_PAL, edge_check=False)
     emit('fx_hit', [U.impact(i) for i in range(3)], U.UI_PAL, edge_check=False)
+    emit('fx_flare', [U.flare(i) for i in range(4)], U.UI_PAL, edge_check=False)
     emit('fx_soulring', [U.soul_halo()], U.UI_PAL, edge_check=False)
 
     # ---- write the JS payload -------------------------------------------

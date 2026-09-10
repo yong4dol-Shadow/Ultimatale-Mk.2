@@ -1,7 +1,7 @@
 """ui.py - HUD, projectile and effect sprites (all procedural)."""
 
 import math
-from pixel import Canvas
+from pixel import Canvas, hexc
 from tiles import TILE_PAL
 
 UI_PAL = dict(TILE_PAL)
@@ -9,6 +9,9 @@ UI_PAL.update({
     'q': '#ff2d55', 'Q': '#8c0a22',    # soul red
     'j': '#39ff88', 'J': '#0f8c45',    # soul green
     'h': '#ffffff', 'x': '#ff8a1f',
+    # the two button tones: UNDERTALE keeps every command button one colour
+    # until the cursor lands on it, so the icons are recoloured to match
+    'O3': '#a85107', 'Y2': '#ffef5a',
 })
 
 
@@ -199,6 +202,25 @@ def save_point(lit):
 
 
 # ---- menu icons ---------------------------------------------------------
+def mono(cv, light, dark):
+    """Recolour a finished icon into one hue, keeping its black outline.
+
+    UNDERTALE's four command buttons are all the same colour until the
+    cursor lands on one; four differently coloured icons inside identical
+    orange boxes would look like a mistake, so the icons follow the text.
+    """
+    out = cv.clone()
+    for y in range(cv.h):
+        for x in range(cv.w):
+            c = cv.get(x, y)
+            if c in ('.', '0', None):
+                continue
+            r, g, b, _ = hexc(UI_PAL[c])
+            lum = (r * 299 + g * 587 + b * 114) / 1000.0
+            out.px(x, y, light if lum > 140 else dark)
+    return out
+
+
 def icon_fight():
     cv = Canvas(16, 16)
     cv.poly([(2, 13), (11, 2), (13, 4), (4, 14)], '6')
@@ -259,6 +281,56 @@ def boom(i):
     for k in range(8):
         a = k * 0.785 + i * 0.2
         cv.px(14 + math.cos(a) * (r + 3), 14 + math.sin(a) * (r + 3), 'r')
+    cv.outline('0')
+    return cv
+
+
+def flare(i):
+    """Golden fire, for where a Chaos Spear punched through.
+
+    The lance is energy, not a blade, so the wound should burn rather than
+    cut - the slash streak read as a sword stroke and, being long and thin,
+    looked stretched next to the enemy sprite.  Four frames: the pierce
+    flash, then a flame that swells and lifts as it thins out.  Colour ramp
+    is orange rim -> gold body -> white heart, the same ramp as the Air
+    Shoes, so the two fires belong to the same game.
+    """
+    cv = Canvas(24, 24)
+    cx, base = 12.0, 17.0
+    if i == 0:                                   # the puncture itself
+        cv.ellipse(cx, base, 7.0, 3.4, 'y')
+        cv.ellipse(cx, base, 4.0, 1.8, 'h')
+        for k in range(8):                       # sparks thrown sideways
+            a = k * 0.785
+            cv.line(cx + math.cos(a) * 3.4, base + math.sin(a) * 1.8,
+                    cx + math.cos(a) * 10.0, base + math.sin(a) * 5.4, 'y')
+        cv.outline('0')
+        return cv
+
+    h = 9.0 + i * 3.0                            # flame height
+    w = 6.6 - i * 1.0                            # half-width at the base
+    lift = (i - 1) * 2.0
+    wob = lambda k: math.sin(k * 3.0 + i * 1.7) * 1.7
+
+    def tongue(scale, shrink, col):
+        n = 10
+        for step in range(n):
+            k = step / (n - 1.0)
+            r = (w - shrink) * (1.0 - k * 0.86)
+            if r <= 0.4:
+                return
+            cv.ellipse(cx + wob(k) * scale, base - lift - h * scale * k,
+                       r * 1.05, r, col)
+
+    tongue(1.00, 0.0, 'o')                       # orange envelope
+    tongue(0.93, 1.0, 'y')                       # gold body - the flame
+                                                 # reads yellow, orange is a rim
+    tongue(0.55, 3.6, 'h')                       # white heart
+    for k in range(3 + i):                       # embers lifting off the tip
+        a = k * 1.3 + i
+        ey = base - lift - h - 1.0 - (k % 3) * 2.0
+        if ey >= 2:                              # keep the outline in the cell
+            cv.px(cx + math.cos(a) * (4.0 + i), ey, 'y')
     cv.outline('0')
     return cv
 
