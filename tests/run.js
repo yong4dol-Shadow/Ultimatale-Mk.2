@@ -404,6 +404,132 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('a save pillar records progress and restores HP',
     saved.lastSave !== '' && saved.hp > 5 && saved.stored);
 
+  /* ---- scenery you can actually press Z on --------------------------- */
+  const propData = await page.evaluate(() => {
+    const art = SH.Assets.sheet('props').names;
+    const names = Object.keys(SH.PropLore);
+    const palettes = Object.keys(SH.MapProps);
+    const missingLore = [];
+    const missingArt = [];
+    palettes.forEach(id => SH.MapProps[id].forEach(n => {
+      if (!SH.PropLore[n]) missingLore.push(id + ':' + n);
+      if (!art[n]) missingArt.push(n);
+    }));
+    const perStage = palettes.map(id => {
+      const m = SH.buildMap(id);
+      const props = m.objects.filter(o => o.kind === 'prop');
+      const kinds = {};
+      props.forEach(o => { kinds[o.prop] = 1; });
+      return { id: id, count: props.length, kinds: Object.keys(kinds).length };
+    });
+    return { names: names.length, missingLore: missingLore, missingArt: missingArt,
+             perStage: perStage };
+  });
+  check('every prop type in every stage palette has a line to say',
+    propData.missingLore.length === 0);
+  check('...and a sprite to draw', propData.missingArt.length === 0);
+  check('the prop set is a lot wider than a handful', propData.names >= 24);
+  check('every stage is dressed with hundreds of props',
+    propData.perStage.every(s => s.count >= 300));
+  check('and never with fewer than five kinds of them',
+    propData.perStage.every(s => s.kinds >= 5));
+
+  const propUse = await page.evaluate(() => {
+    const o = SH.scenes[SH.scenes.length - 1];
+    const props = o.map.objects.filter(x => x.kind === 'prop');
+    const at = (p) => { o.player.x = p.x; o.player.y = p.y; };
+    const out = {};
+
+    /* a plain prop answers with a line and nudges */
+    const plain = props.find(p => {
+      const i = SH.PropLore[p.prop];
+      return !i.loot && !i.rest && !i.light;
+    }) || props[0];
+    at(plain);
+    out.prompt = o.nearObject() === plain;
+    o.noticeT = 0; o.interact();
+    out.said = o.noticeT > 0 && !!o.noticeText;
+    out.bumped = plain.bump > 0;
+    const first = o.noticeText;
+    o.interact();
+    out.secondDiffers = o.noticeText !== first;
+
+    /* an objective in range always beats scenery for the prompt */
+    const term = o.map.objects.filter(x => x.kind === 'terminal')[0];
+    at(term);
+    const stray = props.slice().sort((a, b) =>
+      ((a.x - term.x) ** 2 + (a.y - term.y) ** 2) -
+      ((b.x - term.x) ** 2 + (b.y - term.y) ** 2))[0];
+    out.termWins = o.nearObject() === term;
+    out.strayIsClose = (stray.x - term.x) ** 2 + (stray.y - term.y) ** 2 < 400 * 400;
+
+    /* a searchable prop gives its item exactly once */
+    SH.Game.items = [];
+    const holder = props.find(p => {
+      const i = SH.PropLore[p.prop];
+      return i.loot && o.propHash(p) % i.loot.odds === 0;
+    });
+    out.holders = props.filter(p => {
+      const i = SH.PropLore[p.prop];
+      return i.loot && o.propHash(p) % i.loot.odds === 0;
+    }).length;
+    if (holder) {
+      at(holder);
+      o.interact();
+      out.gotItem = SH.Game.items.length === 1;
+      o.interact();
+      out.notTwice = SH.Game.items.length === 1;
+    }
+
+    /* most props hold nothing, or the pickups would be worthless */
+    out.holderShare = out.holders / props.length;
+
+    /* a bench is a one-time breather */
+    SH.Game.maxhp = 100; SH.Game.hp = 30;
+    const bench = props.find(p => {
+      const i = SH.PropLore[p.prop];
+      return i.rest && o.propHash(p) % i.rest.odds === 0;
+    });
+    if (bench) {
+      at(bench);
+      o.interact();
+      out.healed = SH.Game.hp > 30;
+      const hp = SH.Game.hp;
+      SH.Game.hp = 30;
+      o.interact();
+      out.healedOnce = SH.Game.hp === 30 && hp > 30;
+    }
+
+    /* the braziers in the canyon can be set burning, and stay burning */
+    const lo = new SH.Overworld('glyphic_canyon');
+    lo.enter();
+    const brazier = lo.map.objects.find(x => x.kind === 'prop' && x.prop === 'brazier');
+    lo.player.x = brazier.x; lo.player.y = brazier.y;
+    lo.interact();
+    out.litUp = brazier.lit === true;
+    lo.interact();
+    out.staysLit = brazier.lit === true;
+
+    SH.Game.hp = SH.Game.maxhp;
+    SH.Game.items = [];
+    return out;
+  });
+  check('standing at a prop raises the Z prompt', propUse.prompt === true);
+  check('pressing Z on scenery answers with a line', propUse.said === true);
+  check('and the prop visibly reacts to the press', propUse.bumped === true);
+  check('a second press does not repeat the first line',
+    propUse.secondDiffers === true);
+  check('a terminal in range beats nearby scenery for the prompt',
+    propUse.termWins === true && propUse.strayIsClose === true);
+  check('a searchable prop hands over its item', propUse.gotItem === true);
+  check('but only once', propUse.notTwice === true);
+  check('only a scattered few props hold anything',
+    propUse.holderShare > 0.01 && propUse.holderShare < 0.15);
+  check('a bench gives some HP back', propUse.healed === true);
+  check('and only the first time you sit on it', propUse.healedOnce === true);
+  check('a cold brazier can be set burning', propUse.litUp === true);
+  check('and it stays burning', propUse.staysLit === true);
+
   /* ---- encounters are paced for the faster player -------------------- */
   const enc = await page.evaluate(() => {
     const rates = SH.MAP_ORDER.map(id => SH.Maps[id].encounter.rate);

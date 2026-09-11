@@ -17,6 +17,10 @@
      like, and never mission objectives */
   var READABLE = { sign: 1, npc: 1, log: 1 };
 
+  /* everything you can press Z on forever - the readables plus the
+     scenery, which answers with a line and occasionally holds something */
+  var EXAMINE = { sign: 1, npc: 1, log: 1, prop: 1 };
+
   /* Top speeds and how fast he gets there.  ACCEL is a hair under a second
      from a standstill to a full skate, which is the window the acceleration
      art needs to read; DECEL is much sharper so letting go still stops him
@@ -154,7 +158,7 @@
   Overworld.prototype.openingTips = function () {
     SH.Tips.show('ow_move', '방향키로 이동한다.  X 를 누르고 있으면 스케이트로 가속.');
     SH.Tips.show('ow_mission', '미션을 하나라도 끝내야 출구 문이 열린다.  좌상단에 셋이 떠 있다.');
-    SH.Tips.show('ow_act', '단말·상자·에메랄드 앞에서 Z 를 누르면 조사한다.');
+    SH.Tips.show('ow_act', '단말·상자·에메랄드는 물론, 길가의 기물도 Z 로 조사할 수 있다.');
     SH.Tips.show('ow_menu', 'C 로 메뉴와 설정. 이동 속도도 여기서 바꿀 수 있다.');
   };
 
@@ -210,15 +214,21 @@
 
   /* ---------------- interaction --------------------------------------- */
   Overworld.prototype.nearObject = function () {
-    var p = this.player, best = null, bd = 24 * 24;
+    var p = this.player, best = null, bd = 24 * 24, prop = null, pd = 20 * 20;
     this.map.objects.forEach(function (o) {
-      if (o.kind === 'prop') return;          /* scenery, nothing to press Z on */
-      if (o.kind !== 'gate' && o.kind !== 'save' && !READABLE[o.kind] &&
-          (o.used || !o.alive)) return;
       var dx = o.x - p.x, dy = o.y - p.y, d = dx * dx + dy * dy;
+      /* Scenery is ranked apart and only wins when nothing else is in
+         reach: there are hundreds of props per stage, and a lamp post
+         stealing the prompt off a terminal would be maddening. */
+      if (o.kind === 'prop') {
+        if (d < pd) { pd = d; prop = o; }
+        return;
+      }
+      if (o.kind !== 'gate' && o.kind !== 'save' && !EXAMINE[o.kind] &&
+          (o.used || !o.alive)) return;
       if (d < bd) { bd = d; best = o; }
     });
-    return best;
+    return best || prop;
   };
 
   Overworld.prototype.interact = function () {
@@ -237,6 +247,8 @@
       SH.Tips.show('ow_read', '표지판과 사람들에게는 읽을 것이 있다.  미션과는 상관없다.');
       return;
     }
+
+    if (o.kind === 'prop') { this.examineProp(o); return; }
 
     if (o.kind === 'terminal') {
       o.used = true;
@@ -323,6 +335,97 @@
     }
   };
 
+  /* ---------------- scenery -------------------------------------------
+     Every prop on the map answers to Z.  Most of them only have a line to
+     give, but the map hash picks out a scattered few that hold an item,
+     a bench can be sat on once, and a cold brazier can be set burning -
+     enough that pressing Z on the way past is worth doing.  The answer
+     goes through notice(), not a textbox, so none of it interrupts a run.
+     ------------------------------------------------------------------ */
+
+  /* Stable per-prop number: the same lamp always says the same thing and
+     always either holds something or does not, across save loads. */
+  Overworld.prototype.propHash = function (o) {
+    var h = o.tx * 73 + o.ty * 151 + this.mapId.length * 17;
+    h ^= (h >> 3);
+    return (h < 0 ? -h : h);
+  };
+
+  Overworld.prototype.examineProp = function (o) {
+    var info = SH.PropLore[o.prop] || {}, G = SH.Game;
+    var h = this.propHash(o);
+    if (this.bumped && this.bumped !== o) this.bumped.bump = 0;
+    o.bump = 0.3;                      /* a visible nudge, so it reacted */
+    this.bumped = o;
+    o.reads = (o.reads || 0) + 1;
+
+    /* contents first - the payoff beats the flavour line */
+    var loot = info.loot;
+    if (loot && h % loot.odds === 0) {
+      if (o.looted) {
+        SH.Audio.sfx('deny');
+        this.notice(loot.after);
+        return;
+      }
+      if (G.items.length >= 8) {
+        SH.Audio.sfx('deny');
+        this.notice('가방이 가득 찼다.  ' + SH.Items[loot.item].name + ' 은(는) 두고 간다.');
+        return;
+      }
+      o.looted = true;
+      G.items.push(loot.item);
+      SH.Audio.sfx('pickup');
+      SH.flash('#ffd23f', 0.14);
+      SH.Tips.show('ow_search', '기물 중 일부는 뒤지면 아이템이 나온다.  전부는 아니다.');
+      this.notice(loot.text + '   (' + SH.Items[loot.item].name + ')');
+      return;
+    }
+
+    /* sit down once - and only on the benches the hash picks, so a city
+       full of them is not a city full of free healing */
+    if (info.rest && h % info.rest.odds === 0) {
+      if (G.hp >= G.maxhp) {
+        SH.Audio.sfx('deny');
+        this.notice(info.rest.full);
+        return;
+      }
+      if (!o.rested) {
+        o.rested = true;
+        G.hp = Math.min(G.maxhp, G.hp + info.rest.hp);
+        SH.Audio.sfx('heal');
+        SH.flash('#8effa2', 0.12);
+        this.notice(info.rest.text + '   (HP +' + info.rest.hp + ')');
+        return;
+      }
+    }
+
+    /* set it burning, and leave it burning */
+    if (info.light) {
+      if (!o.lit) {
+        o.lit = true;
+        SH.Audio.sfx('chaos');
+        SH.flash('#ff9a2e', 0.16);
+        this.notice(info.light.text);
+        return;
+      }
+      SH.Audio.sfx('confirm');
+      this.notice(info.light.lit);
+      return;
+    }
+
+    /* one-shot bit of business, then the ordinary lines */
+    if (info.pickup && o.reads === 1) {
+      SH.Audio.sfx('text');
+      this.notice(info.pickup);
+      return;
+    }
+
+    var look = info.look || ['...특별할 것은 없다.'];
+    SH.Audio.sfx('confirm');
+    this.notice(o.reads > 1 && info.again ? info.again
+                                          : look[h % look.length]);
+  };
+
   Overworld.prototype.leaveStage = function () {
     var self = this;
     var chosen = this.firstCompleted || 'normal';
@@ -392,6 +495,10 @@
     if (this.titleT > 0) this.titleT -= dt;
     if (this.noticeT > 0) this.noticeT -= dt;
     if (this.encFlash > 0) this.encFlash -= dt;
+    if (this.bumped) {
+      this.bumped.bump -= dt;
+      if (this.bumped.bump <= 0) { this.bumped.bump = 0; this.bumped = null; }
+    }
 
     if (this.box) { this.box.update(dt); return; }
     if (SH.isFading()) return;
@@ -524,7 +631,7 @@
 
     if (SH.Input.pressed('confirm') && !p.ateConfirm) this.interact();
     p.ateConfirm = false;
-    if (this.nearObject()) SH.Tips.show('ow_prompt', 'Z 표시가 뜬 곳은 조사할 수 있다.');
+    if (this.nearObject()) SH.Tips.show('ow_prompt', 'Z 표시가 뜬 곳은 전부 조사할 수 있다.  간판도, 사람도, 길가의 기물도.');
 
     /* camera */
     var cw = SH.W, chh = SH.H;
@@ -636,7 +743,15 @@
         SH.draw('signpost', SH.frameOf('signpost', near ? 'lit' : 'idle', 0),
                 o.x - 8 - cx, o.y - 16 - cy);
       } else if (o.kind === 'prop') {
-        SH.draw('props', SH.frameOf('props', o.prop, 0), x, o.y - 16 - cy);
+        /* a short hop when it is pressed, so scenery visibly answers */
+        var hop = o.bump > 0 ? Math.sin(o.bump / 0.3 * Math.PI) * 2 : 0;
+        SH.draw('props', SH.frameOf('props', o.prop, 0),
+                x, o.y - 16 - cy - Math.round(hop));
+        if (o.lit) {
+          SH.draw('fx_flare', ((SH.time * 12 + o.tx) | 0) % 4,
+                  o.x - 12 - cx, o.y - 27 - cy - Math.round(hop),
+                  { alpha: 0.85 });
+        }
       } else if (o.kind === 'log') {
         var nearL = self.nearObject() === o;
         SH.draw('datalog', SH.frameOf('datalog', nearL ? 'lit' : 'idle', 0),
@@ -647,7 +762,7 @@
                 o.x - 8 - cx, o.y - 16 - cy);
       }
       /* interaction prompt */
-      var readable = !!READABLE[o.kind];
+      var readable = !!EXAMINE[o.kind];
       if (self.nearObject() === o &&
           (readable || !(o.used || !o.alive) || o.kind === 'gate')) {
         SH.text('Z', o.x - cx, o.y - cy - (o.kind === 'log' ? 18 : (readable ? 26 : 20)),

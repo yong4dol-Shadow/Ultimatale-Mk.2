@@ -371,6 +371,95 @@ def prop_eggs():
     return cv
 
 
+def prop_barrel():
+    cv = Canvas(16, 24)
+    cv.rect(4, 10, 8, 13, '4')
+    cv.rect(4, 10, 8, 1, '5')
+    cv.rect(4, 15, 8, 2, 'y')                   # hazard band
+    cv.rect(4, 21, 8, 1, '3')
+    cv.px(6, 13, '5'); cv.px(9, 19, '3')
+    cv.outline('0')
+    return cv
+
+
+def prop_barricade():
+    cv = Canvas(16, 24)
+    for i in range(2):
+        cv.rect(1, 14 + i * 4, 14, 3, 'W')
+        for k in range(4):
+            cv.rect(2 + k * 4, 14 + i * 4, 2, 3, 'r')
+    cv.rect(2, 17, 2, 6, '3')
+    cv.rect(12, 17, 2, 6, '3')
+    cv.outline('0')
+    return cv
+
+
+def prop_phone():
+    cv = Canvas(16, 24)
+    cv.rect(3, 4, 10, 19, 'C')
+    cv.rect(4, 6, 8, 11, '1')
+    cv.rect(5, 7, 3, 8, '6')                    # the handset, still on its hook
+    cv.rect(3, 3, 10, 2, 'W')
+    cv.rect(4, 19, 8, 2, '2')
+    cv.outline('0')
+    return cv
+
+
+def prop_antenna():
+    cv = Canvas(16, 24)
+    _post(cv, 7, 2, 4)
+    for i in range(3):                          # cross arms
+        cv.rect(3 + (i % 2), 6 + i * 5, 10 - (i % 2) * 2, 1, '5')
+    cv.rect(4, 21, 8, 2, '3')
+    cv.px(8, 2, 'r')                            # the light on top
+    cv.px(8, 3, 'r')
+    cv.outline('0')
+    return cv
+
+
+def prop_statue():
+    cv = Canvas(16, 24)
+    cv.rect(3, 20, 10, 3, '4')                  # plinth
+    cv.poly([(6, 20), (10, 20), (9, 9), (7, 9)], '5')
+    cv.ellipse(8, 7, 2.6, 2.8, '5')             # head, broken off at the neck
+    cv.poly([(5, 13), (7, 12), (7, 14)], '5')   # a stump of an arm
+    cv.px(10, 8, '6'); cv.px(7, 11, '6')
+    cv.outline('0')
+    return cv
+
+
+def prop_crystal():
+    cv = Canvas(16, 24)
+    cv.poly([(8, 6), (12, 14), (10, 22), (6, 22), (4, 14)], 'c')
+    cv.poly([(8, 8), (10, 14), (8, 20), (6, 14)], 'h')
+    cv.poly([(3, 18), (5, 14), (6, 22)], 'c')
+    cv.px(8, 11, 'h')
+    cv.outline('0')
+    return cv
+
+
+def prop_bones():
+    cv = Canvas(16, 24)
+    cv.ellipse(6, 20, 3.4, 2.2, '7')            # a skull, half buried
+    cv.px(5, 20, '2'); cv.px(7, 20, '2')
+    cv.taper_line(9, 22, 14, 18, 1.4, 1.0, '7')  # ribs
+    cv.taper_line(10, 21, 14, 21, 1.2, 0.8, '6')
+    cv.taper_line(3, 22, 6, 23, 1.0, 0.8, '6')
+    cv.outline('0')
+    return cv
+
+
+def prop_turret():
+    cv = Canvas(16, 24)
+    cv.rect(3, 18, 10, 5, '3')                  # mount
+    cv.ellipse(8, 15, 4.4, 3.6, '4')            # housing, hanging dead
+    cv.rect(9, 10, 3, 6, '5')                   # the barrel, drooping
+    cv.rect(8, 9, 5, 2, '4')
+    cv.px(6, 14, 'r')                           # a dark status lamp
+    cv.outline('0')
+    return cv
+
+
 PROPS = [
     ('lamp', prop_lamp), ('hydrant', prop_hydrant), ('bench', prop_bench),
     ('vending', prop_vending), ('wreck', prop_wreck),
@@ -379,6 +468,10 @@ PROPS = [
     ('console', prop_console), ('tank', prop_tank), ('locker', prop_locker),
     ('generator', prop_generator), ('radar', prop_radar), ('ammo', prop_ammo),
     ('growth', prop_growth), ('node', prop_node), ('eggs', prop_eggs),
+    ('barrel', prop_barrel), ('barricade', prop_barricade),
+    ('phone', prop_phone), ('antenna', prop_antenna),
+    ('statue', prop_statue), ('crystal', prop_crystal),
+    ('bones', prop_bones), ('turret', prop_turret),
 ]
 
 

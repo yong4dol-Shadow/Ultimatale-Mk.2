@@ -177,7 +177,7 @@ def westopolis():
     g.place(96, 46, 'N'); g.place(30, 96, 'N')
     g.place(46, 62, 'L'); g.place(118, 34, 'L'); g.place(150, 120, 'L')
     # set dressing, spread on a coprime stride so it never lines up into rows
-    for i in range(280):
+    for i in range(360):
         g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
@@ -208,7 +208,7 @@ def glyphic_canyon():
     g.place(104, 34, 'N'); g.place(72, 122, 'N')
     g.place(24, 44, 'L'); g.place(128, 96, 'L'); g.place(176, 128, 'L')
     # set dressing, spread on a coprime stride so it never lines up into rows
-    for i in range(240):
+    for i in range(320):
         g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
@@ -239,7 +239,7 @@ def ark():
     g.place(126, 76, 'N'); g.place(68, 44, 'N')
     g.place(20, 62, 'L'); g.place(92, 20, 'L'); g.place(150, 108, 'L'); g.place(186, 44, 'L')
     # set dressing, spread on a coprime stride so it never lines up into rows
-    for i in range(240):
+    for i in range(320):
         g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
@@ -270,7 +270,7 @@ def gun_fortress():
     g.place(96, 52, 'N'); g.place(60, 128, 'N')
     g.place(24, 44, 'L'); g.place(118, 96, 'L'); g.place(170, 128, 'L')
     # set dressing, spread on a coprime stride so it never lines up into rows
-    for i in range(240):
+    for i in range(320):
         g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
@@ -297,7 +297,7 @@ def black_comet():
     g.place(100, 40, 'N'); g.place(66, 128, 'N')
     g.place(26, 58, 'L'); g.place(132, 98, 'L'); g.place(180, 130, 'L')
     # set dressing, spread on a coprime stride so it never lines up into rows
-    for i in range(240):
+    for i in range(320):
         g.place(9 + (i * 37) % (W - 18), 7 + (i * 53) % (H - 14), 'D')
     g.put(W - 4, H - 3, 'G')
     return g
