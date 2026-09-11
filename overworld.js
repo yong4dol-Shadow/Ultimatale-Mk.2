@@ -21,6 +21,13 @@
      scenery, which answers with a line and occasionally holds something */
   var EXAMINE = { sign: 1, npc: 1, log: 1, prop: 1 };
 
+  /* The mission objects are drawn from a 24x36 sheet of their own rather
+     than as 16x16 floor tiles: at tile size they were exactly as big as
+     the three hundred bits of set dressing sharing the screen, so finding
+     a terminal meant reading every lamp post.  TALL is who stands that
+     high - it moves their drop shadow and their Z prompt to match. */
+  var TALL = { terminal: 1, crate: 1, pod: 1, emerald: 1, save: 1 };
+
   /* Top speeds and how fast he gets there.  ACCEL is a hair under a second
      from a standstill to a full skate, which is the window the acceleration
      art needs to read; DECEL is much sharper so letting go still stops him
@@ -31,13 +38,14 @@
      ramp is under a second end to end, so staging the fire on it left the
      half-lit frame on screen for a quarter of a second and you never saw
      it.  Burn charges while skating (scaled by how fast he is actually
-     going) and drains quickly when he stops, which puts a full second on
-     the heel-vents stage. */
-  /* Burn bleeds off SLOWLY once he stops, and never all the way back to
-     cold: once the Air Shoes have been lit they stay warm, so pausing at a
-     save point or reading a sign does not mean winding the whole thing up
-     from nothing again. */
-  var FIRE_1 = 0.35, FIRE_2 = 1.35, BURN_DRAIN = 0.45;
+     going), and the gap between the two thresholds is a full burn unit -
+     about a second of heel-vents before he goes up completely.
+
+     Stopping puts it all the way back to COLD, and quickly.  Building the
+     fire up from nothing is the point of the ramp: if the shoes stayed
+     warm across a stop, every run after the first would start at stage
+     one and the climb would only ever happen once. */
+  var FIRE_1 = 0.35, FIRE_2 = 1.35, BURN_DRAIN = 2.5;
   /* the spin: a short roll you can trigger once he is at a full burn */
   var SPIN_TIME = 0.62, SPIN_BOOST = 1.4;
   /* the spin dash: hold down, tap Z or X to rev, let go to launch.  Six
@@ -56,7 +64,7 @@
       face: 1,            // -1 / +1, only meaningful when dir === 'side'
       dir: 'down',        // 'side' | 'down' | 'up'
       anim: 0, moving: false, skating: false, spd: 0, charge: 0,
-      burn: 0, spin: 0, rev: 0, revving: false, lit: false,
+      burn: 0, spin: 0, rev: 0, revving: false,
       ateConfirm: false
     };
     this.walked = 0;
@@ -550,7 +558,6 @@
         /* six turns is a standing start straight into top speed */
         p.spd = TOP_DASH * (0.45 + 0.55 * Math.min(1, wind / REV_MAX));
         p.burn = FIRE_2;                  /* comes out of it fully lit */
-        p.lit = true;
         SH.Audio.sfx('chaos');
         SH.shake(4, 0.18);
       }
@@ -598,10 +605,10 @@
           '에어 슈즈가 완전히 점화됐다.  이 상태에서 ↓ 를 누르면 스핀 (조우 무시).');
       }
     } else {
-      /* the floor is the heel-vent stage once he has ever been fully lit */
-      p.burn = Math.max(p.lit ? FIRE_1 : 0, p.burn - dt * BURN_DRAIN);
+      /* off the shoes: the fire dies all the way out, so the next run
+         climbs none -> heels -> full again from the bottom */
+      p.burn = Math.max(0, p.burn - dt * BURN_DRAIN);
     }
-    if (p.burn >= FIRE_2) p.lit = true;
 
     var speed = p.spd * SH.Settings.speedMul() * dt;
     if (p.spin > 0) speed *= SPIN_BOOST;
@@ -709,11 +716,16 @@
     this.map.objects.forEach(function (o) {
       var x = o.x - 8 - cx, y = o.y - 8 - cy;
       if (x < -TS || y < -TS || x > SH.W || y > SH.H) return;
-      if (o.kind !== 'gate' && !(o.used || !o.alive)) {
-        var big = o.kind === 'save' || o.kind === 'sign' ||
+      /* the emerald brings its own pool of light, so it gets no shadow;
+         a finished terminal is still standing there, so it keeps one */
+      if (o.kind !== 'gate' && o.kind !== 'emerald' &&
+          (!(o.used || !o.alive) || o.kind === 'terminal')) {
+        var tall = o.kind === 'terminal' || o.kind === 'crate' || o.kind === 'pod';
+        var big = tall || o.kind === 'save' || o.kind === 'sign' ||
                   o.kind === 'npc' || o.kind === 'prop';
         SH.groundShadow(o.x - cx, o.y - cy + (big ? 9 : 7),
-                        big ? 9 : 6, big ? 3 : 2.2, 0.34);
+                        tall ? 11 : (big ? 9 : 6),
+                        tall ? 3.4 : (big ? 3 : 2.2), 0.34);
       }
       if (o.kind === 'gate') {
         /* 32x48: two tiles wide, three tall, anchored on its bottom tile */
@@ -728,15 +740,29 @@
         SH.draw('savepoint', SH.frameOf('savepoint', lit ? 'lit' : 'idle', 0),
                 o.x - 12 - cx, o.y - 26 - cy + Math.sin(SH.time * 2 + o.tx) * 1.2);
       } else if (o.kind === 'terminal') {
-        SH.draw('tiles', SH.frameOf('tiles', o.used ? 'terminal_on' : 'terminal_off', 0), x, y);
+        /* the marker diamond bobs while it is still on the list, and the
+           finished sprite drops it entirely */
+        SH.draw('objectives',
+                SH.frameOf('objectives', o.used ? 'terminal_on' : 'terminal_off',
+                           (SH.time * 3 + o.tx) | 0),
+                o.x - 12 - cx, o.y - 28 - cy);
       } else if (o.kind === 'crate') {
-        if (o.alive) SH.draw('tiles', SH.frameOf('tiles', 'crate', 0), x, y);
+        if (o.alive) {
+          SH.draw('objectives',
+                  SH.frameOf('objectives', 'crate', (SH.time * 3 + o.tx) | 0),
+                  o.x - 12 - cx, o.y - 28 - cy);
+        }
       } else if (o.kind === 'pod') {
-        if (o.alive) SH.draw('tiles', SH.frameOf('tiles', 'alien_pod', 0), x, y);
+        if (o.alive) {
+          SH.draw('objectives',
+                  SH.frameOf('objectives', 'pod', (SH.time * 3 + o.tx) | 0),
+                  o.x - 12 - cx, o.y - 28 - cy);
+        }
       } else if (o.kind === 'emerald') {
         if (!o.used) {
-          SH.draw('hud', SH.frameOf('hud', SH.Game.emeraldSpriteFor(o), 0),
-                  x, y + Math.sin(SH.time * 2.5 + o.tx) * 2);
+          SH.draw('objectives', SH.frameOf('objectives', SH.Game.emeraldSpriteFor(o), 0),
+                  o.x - 12 - cx,
+                  o.y - 28 - cy + Math.sin(SH.time * 2.5 + o.tx) * 2);
         }
       } else if (o.kind === 'sign') {
         var near = self.nearObject() === o;
@@ -765,7 +791,9 @@
       var readable = !!EXAMINE[o.kind];
       if (self.nearObject() === o &&
           (readable || !(o.used || !o.alive) || o.kind === 'gate')) {
-        SH.text('Z', o.x - cx, o.y - cy - (o.kind === 'log' ? 18 : (readable ? 26 : 20)),
+        var lift = o.kind === 'log' ? 18
+                 : (TALL[o.kind] ? 38 : (readable ? 26 : 20));
+        SH.text('Z', o.x - cx, o.y - cy - lift,
                 { color: '#ffd23f', size: 9, align: 'center' });
       }
     });

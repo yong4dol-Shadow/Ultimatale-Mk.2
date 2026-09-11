@@ -567,6 +567,123 @@ def save_point(lit):
     return cv
 
 
+# ---- mission objectives -------------------------------------------------
+# These used to be 16x16 tiles painted flat on the floor - exactly the size
+# of the three hundred odd bits of set dressing sharing the screen with
+# them.  Hunting for a terminal meant reading every lamp post.  They are
+# 24x36 now, bottom-anchored like the props, built with enough detail to be
+# named from across the screen, and they all wear the same little diamond
+# so "this one is a mission object" reads before the silhouette does.
+def _objective_marker(cv, x, bob=0, col='y'):
+    """The shared floating diamond every objective wears."""
+    t = bob
+    cv.poly([(x, t), (x + 4, t + 4), (x, t + 8), (x - 4, t + 4)], col)
+    cv.poly([(x, t + 2), (x + 2, t + 4), (x, t + 6), (x - 2, t + 4)], '8')
+    cv.px(x - 1, t + 3, 'h')
+
+
+def obj_terminal(on=False, bob=0):
+    """A control terminal.  Squat and wide, against the save pillar's
+    narrow column, so the two never get mistaken for each other."""
+    cv = Canvas(24, 36)
+    cv.rect(1, 33, 22, 2, '2')                       # plinth shadow
+    cv.rect(2, 30, 20, 4, '3')                       # plinth
+    cv.rect(3, 31, 18, 2, '4')
+    cv.poly([(4, 12), (20, 12), (21, 30), (3, 30)], '4')   # housing
+    cv.rect(5, 13, 14, 13, '3')                      # bezel
+    cv.rect(6, 14, 12, 11, '1')                      # screen
+    if on:
+        cv.rect(6, 14, 12, 11, 'C')
+        for i in range(5):
+            cv.rect(7, 15 + i * 2, 10 - (i % 2) * 4, 1, 'c')
+        cv.rect(6, 14, 12, 1, 'c')
+    else:
+        cv.rect(7, 18, 8, 1, '3')                    # dead readout
+        cv.rect(7, 21, 5, 1, '3')
+    cv.rect(4, 26, 16, 3, '5')                       # key shelf
+    for i in range(7):
+        cv.px(5 + i * 2, 27, '2')
+    cv.rect(5, 25, 4, 1, '2')                        # vent
+    cv.taper_line(20, 28, 23, 34, 2, 1, '2')         # cable to the floor
+    lamp = 'g' if on else 'r'
+    cv.ellipse(19, 16, 1.6, 1.6, lamp)               # status lamp
+    cv.px(19, 15, '8')
+    if not on:
+        _objective_marker(cv, 12, bob)
+    cv.outline('0')
+    cv.shade('4', '3', '5')
+    return cv
+
+
+def obj_crate(bob=0):
+    """A G.U.N. supply container: wide, cross-braced, banded and sitting on
+    a pallet.  Nothing in the set dressing has that silhouette, which is
+    the whole point - the old 16x16 crate was the size of a hydrant."""
+    cv = Canvas(24, 36)
+    cv.rect(2, 33, 20, 2, '2')                       # pallet shadow
+    cv.rect(2, 30, 20, 3, 'W')                       # pallet
+    cv.rect(3, 31, 18, 1, 'w')
+    cv.rect(1, 14, 22, 16, '3')                      # body
+    cv.rect(2, 15, 20, 14, '4')
+    cv.rect(2, 15, 20, 2, '5')                       # lid face
+    for i in range(5):                               # hazard band on the lid
+        cv.rect(3 + i * 4, 15, 2, 2, 'y')
+    cv.rect(1, 17, 22, 1, '2')                       # lid seam
+    cv.line(3, 28, 20, 20, '5')                      # cross-bracing
+    cv.line(20, 28, 3, 20, '5')
+    for x0, y0 in ((1, 14), (18, 14), (1, 26), (18, 26)):
+        cv.rect(x0, y0, 5, 4, '3')                   # corner plates
+        cv.rect(x0 + 1, y0 + 1, 3, 2, '5')
+    cv.rect(8, 21, 8, 6, '5')                        # stencil plate
+    cv.rect(9, 22, 6, 4, '2')
+    cv.rect(10, 23, 4, 1, 'y')
+    cv.rect(10, 25, 3, 1, '6')
+    _objective_marker(cv, 12, bob)
+    cv.outline('0')
+    return cv
+
+
+def obj_pod(bob=0):
+    """A Black Arms egg sac.  Wet, veined and lit from inside - nothing
+    else on the comet is shaped like it."""
+    cv = Canvas(24, 36)
+    cv.ellipse(12, 31, 9, 3.4, 'm')                  # root mat
+    cv.ellipse(12, 30, 6, 2.2, 'n')
+    cv.ellipse(12, 22, 8.5, 10, 'M')                 # sac
+    cv.ellipse(12, 22, 7, 8.4, 'm')
+    cv.ellipse(12, 21, 4.6, 6, 'n')
+    for i in range(5):                               # veins over the skin
+        a = 0.7 + i * 0.42
+        cv.taper_line(12, 30, 12 + math.cos(a) * 7.5, 21 - math.sin(a) * 6.5,
+                      2, 0.6, 'n')
+    cv.ellipse(11, 20, 2.8, 3.8, 'r')                # the thing inside
+    cv.ellipse(11, 19, 1.4, 2.0, 'e')
+    cv.px(11, 18, 'h')
+    cv.taper_line(12, 15, 12, 12, 2.2, 0.9, 'm')     # spout
+    cv.ellipse(12, 12, 2.2, 1.5, 'n')
+    _objective_marker(cv, 12, bob, 'e')              # green: alien, not G.U.N.
+    cv.outline('0')
+    return cv
+
+
+def obj_emerald(color, dark):
+    """A Chaos Emerald on the ground: the HUD gem at more than twice the
+    size, hovering over its own pool of light."""
+    cv = Canvas(24, 36)
+    cv.ellipse(12, 31, 7.5, 2.8, dark)               # pool of light below
+    cv.ellipse(12, 31, 5, 1.7, color)
+    cv.poly([(12, 8), (21, 17), (17, 29), (7, 29), (3, 17)], color)
+    cv.poly([(7, 17), (12, 22), (7, 29), (3, 17)], dark)   # facet in shadow
+    cv.poly([(12, 8), (16, 15), (12, 18), (8, 15)], '8')   # crown facet
+    cv.px(11, 11, 'h'); cv.px(12, 11, 'h')
+    cv.outline('0')
+    for x0, y0 in ((2, 7), (21, 10), (4, 27), (20, 25)):
+        cv.px(x0 - 1, y0, '8'); cv.px(x0 + 1, y0, '8')
+        cv.px(x0, y0 - 1, '8'); cv.px(x0, y0 + 1, '8')
+        cv.px(x0, y0, 'h')
+    return cv
+
+
 # ---- menu icons ---------------------------------------------------------
 def mono(cv, light, dark):
     """Recolour a finished icon into one hue, keeping its black outline.

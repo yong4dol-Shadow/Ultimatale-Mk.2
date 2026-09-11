@@ -200,24 +200,25 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('the Air Shoes start cold and reach a full burn',
     fire.first === 0 && fire.last === 2 && fire.stages.includes(1));
 
-  /* Once lit they stay warm - stopping to read a sign should not mean
-     winding the whole thing back up from cold. */
-  const warm = await page.evaluate(async () => {
+  /* Stopping puts the fire all the way out, so the next run climbs
+     none -> heels -> full from the bottom again.  That climb is the whole
+     point of the ramp; keeping the shoes warm would spend it once. */
+  const cold = await page.evaluate(async () => {
     const o = SH.scenes[SH.scenes.length - 1];
     const p = o.player;
-    p.burn = 2.0; p.lit = true; p.spd = 0;
+    p.burn = 2.0; p.spd = 0;
     SH.Input.state.right = false; SH.Input.state.cancel = false;
     await new Promise(r => setTimeout(r, 1500));   // stand still a while
-    return { burn: p.burn, lit: p.lit };
+    return { burn: p.burn };
   });
-  check('a stop does not put the Air Shoes back to cold', warm.burn >= 0.35);
+  check('a stop puts the Air Shoes all the way back to cold', cold.burn === 0);
 
   /* Spin dash: hold down, tap to rev, let go to launch. */
   const dash = await page.evaluate(async () => {
     const o = SH.scenes[SH.scenes.length - 1];
     const p = o.player;
     p.x = o.map.spawn.x; p.y = o.map.spawn.y;
-    p.spd = 0; p.spin = 0; p.rev = 0; p.burn = 0; p.lit = false;
+    p.spd = 0; p.spin = 0; p.rev = 0; p.burn = 0;
     p.dir = 'side'; p.face = 1;
     SH.Input.state.down = true;
     await new Promise(r => setTimeout(r, 200));
@@ -267,7 +268,7 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
       clear();
       p.x = o.map.spawn.x; p.y = o.map.spawn.y;
       p.spin = 0; p.rev = 0; p.revving = false;
-      p.burn = 2.0; p.lit = true; p.dir = 'side'; p.face = 1;
+      p.burn = 2.0; p.dir = 'side'; p.face = 1;
       p.spd = holdRight ? 176 : 0;
       key('keydown', 'KeyX');                    // dash held
       if (holdRight) key('keydown', 'ArrowRight');
@@ -283,7 +284,7 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
     const still = await attempt(false);
     const running = await attempt(true);
     clear();
-    p.spin = 0; p.rev = 0; p.revving = false; p.burn = 0; p.lit = false;
+    p.spin = 0; p.rev = 0; p.revving = false; p.burn = 0;
     await new Promise(r => setTimeout(r, 80));
     return { still: still, running: running };
   });
@@ -403,6 +404,38 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   });
   check('a save pillar records progress and restores HP',
     saved.lastSave !== '' && saved.hp > 5 && saved.stored);
+
+  /* ---- mission objects read as mission objects ----------------------- */
+  const objs = await page.evaluate(() => {
+    const o = SH.Assets.sheet('objectives'), p = SH.Assets.sheet('props');
+    const names = o.names;
+    const emeralds = ['emerald_cyan', 'emerald_yellow', 'emerald_green',
+                      'emerald_blue', 'emerald_purple', 'emerald_red',
+                      'emerald_white'];
+    const ow = SH.scenes[SH.scenes.length - 1];
+    const t = ow.map.objects.filter(x => x.kind === 'terminal')[0];
+    /* a finished terminal must switch to the frame WITHOUT the marker
+       diamond, or the objective list stops being readable off the map */
+    const off = SH.frameOf('objectives', 'terminal_off', 0);
+    t.used = true;
+    const on = SH.frameOf('objectives', 'terminal_on', 0);
+    t.used = false;
+    return {
+      objW: o.fw, objH: o.fh, propW: p.fw, propH: p.fh,
+      marked: names.terminal_off.length === 2 && names.crate.length === 2 &&
+              names.pod.length === 2,
+      doneIsOwnFrame: names.terminal_on.length === 1 && off !== on,
+      allEmeralds: emeralds.every(n => names[n] && names[n].length === 1),
+      count: o.frames
+    };
+  });
+  check('mission objects have a sheet of their own', objs.count === 14);
+  check('and they stand a good deal bigger than the set dressing',
+    objs.objW > objs.propW && objs.objH > objs.propH &&
+    objs.objW * objs.objH >= objs.propW * objs.propH * 2);
+  check('unfinished objectives carry a two-frame bobbing marker', objs.marked);
+  check('a finished terminal drops the marker', objs.doneIsOwnFrame);
+  check('every emerald colour has a big overworld gem', objs.allEmeralds);
 
   /* ---- scenery you can actually press Z on --------------------------- */
   const propData = await page.evaluate(() => {

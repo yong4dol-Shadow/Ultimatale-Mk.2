@@ -215,6 +215,28 @@ def build():
          frame_names={'idle': [0], 'lit': [1]}, edge_check=False)
     emit('datalog', [U.datalog(False), U.datalog(True)], U.UI_PAL,
          frame_names={'idle': [0], 'lit': [1]}, edge_check=False)
+    # ---- mission objectives ---------------------------------------------
+    # Two frames each so the marker diamond bobs; the finished terminal
+    # drops its marker, which is how you tell at a glance which ones are
+    # still on the list.
+    obj, obj_names = [], {}
+
+    def addo(nm, cv):
+        obj_names.setdefault(nm, []).append(len(obj))
+        obj.append(cv)
+
+    for b in (0, 2):
+        addo('terminal_off', U.obj_terminal(False, b))
+    addo('terminal_on', U.obj_terminal(True, 0))
+    for b in (0, 2):
+        addo('crate', U.obj_crate(b))
+    for b in (0, 2):
+        addo('pod', U.obj_pod(b))
+    for nm, c, d in U.EMERALD_COLORS:
+        addo(nm, U.obj_emerald(c, d))
+    emit('objectives', obj, U.UI_PAL, cols=7, frame_names=obj_names,
+         edge_check=False)
+
     emit('props', [fn() for _, fn in U.PROPS], U.UI_PAL, cols=9,
          frame_names={nm: [i] for i, (nm, _) in enumerate(U.PROPS)},
          edge_check=False)

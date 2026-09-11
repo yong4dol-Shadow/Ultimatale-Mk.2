@@ -277,16 +277,6 @@ def flesh_vein():
     return cv
 
 
-def alien_pod():
-    cv = flesh_wall()
-    cv.ellipse(8, 9, 5.5, 6, 'M')
-    cv.ellipse(8, 9, 4, 4.5, 'e')
-    cv.ellipse(8, 8, 2, 2.4, 'E')
-    cv.taper_line(8, 3, 8, 0, 2, 1, 'n')
-    return cv
-
-
-# ---- interactive / common ----------------------------------------------
 def gate_locked():
     cv = base('2')
     cv.rect(1, 0, 14, TS, '4')
@@ -308,36 +298,6 @@ def gate_open():
     cv.rect(0, 0, 1, TS, 'g')
     cv.rect(15, 0, 1, TS, 'g')
     speckle(cv, 211, '13', 0.1)
-    return cv
-
-
-def terminal_off():
-    cv = base('2')
-    cv.rect(3, 2, 10, 11, '4')
-    cv.rect(4, 3, 8, 6, '1')
-    cv.rect(5, 10, 6, 2, '3')
-    cv.rect(2, 13, 12, 2, '3')
-    cv.px(11, 11, '4')
-    return cv
-
-
-def terminal_on():
-    cv = terminal_off()
-    cv.rect(4, 3, 8, 6, 'C')
-    cv.rect(5, 4, 6, 1, 'c')
-    cv.rect(5, 6, 4, 1, 'c')
-    cv.px(11, 11, 'g')
-    return cv
-
-
-def crate():
-    cv = base('w')
-    cv.rect_out(0, 0, TS, TS, 'W')
-    cv.rect(1, 1, 14, 1, '8')
-    cv.line(1, 1, 14, 14, 'W')
-    cv.line(14, 1, 1, 14, 'W')
-    cv.rect(6, 6, 4, 4, 'Y')
-    cv.px(7, 7, 'y')
     return cv
 
 
@@ -375,8 +335,7 @@ TILES = [
     ('steel_floor', steel_floor), ('steel_wall', steel_wall),
     ('hazard', hazard), ('pipe', pipe),
     ('flesh_floor', flesh_floor), ('flesh_wall', flesh_wall),
-    ('flesh_vein', flesh_vein), ('alien_pod', alien_pod),
+    ('flesh_vein', flesh_vein),
     ('gate_locked', gate_locked), ('gate_open', gate_open),
-    ('terminal_off', terminal_off), ('terminal_on', terminal_on),
-    ('crate', crate), ('goal_ring', goal_ring), ('barrier', barrier),
+    ('goal_ring', goal_ring), ('barrier', barrier),
 ]
