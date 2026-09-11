@@ -32,7 +32,13 @@
      from a standstill to a full skate, which is the window the acceleration
      art needs to read; DECEL is much sharper so letting go still stops him
      where you expect. */
-  var TOP_WALK = 106, TOP_DASH = 176;
+  /* Top speed is a STAGE, not a number: the fire on the Air Shoes is what
+     you are actually reading off the screen, so each stage of it has to be
+     worth reaching.  Cold he is barely faster than a walk; on the heel
+     vents he is quick; fully lit he is gone.  The gaps are deliberately
+     wide enough to feel through the D-pad rather than only on a stopwatch. */
+  var TOP_WALK = 106;
+  var DASH_COLD = 130, DASH_WARM = 180, DASH_HOT = 248;
   var ACCEL = 200, DECEL = 620;
   /* The Air Shoes light off a burn timer rather than raw speed: the speed
      ramp is under a second end to end, so staging the fire on it left the
@@ -47,10 +53,12 @@
      one and the climb would only ever happen once. */
   var FIRE_1 = 0.35, FIRE_2 = 1.35, BURN_DRAIN = 2.5;
   /* the spin: a short roll you can trigger once he is at a full burn */
-  var SPIN_TIME = 0.62, SPIN_BOOST = 1.4;
-  /* the spin dash: hold down, tap Z or X to rev, let go to launch.  Six
-     revs is a standing start straight into top speed. */
-  var REV_MAX = 6, REV_DECAY = 1.4, SPIN_DASH_TIME = 0.55;
+  var SPIN_TIME = 0.62, SPIN_BOOST = 1.45;
+  /* The spin dash: hold down, tap Z or X to rev, let go to launch.  A full
+     six-turn wind-up is the fastest thing in the game by a clear margin -
+     it costs you a standstill and a second of tapping, so it has to beat
+     simply holding a direction, and beat the rolling spin too. */
+  var REV_MAX = 6, REV_DECAY = 1.4, SPIN_DASH_TIME = 0.55, DASH_BOOST = 1.85;
 
   function Overworld(mapId, opt) {
     opt = opt || {};
@@ -64,7 +72,7 @@
       face: 1,            // -1 / +1, only meaningful when dir === 'side'
       dir: 'down',        // 'side' | 'down' | 'up'
       anim: 0, moving: false, skating: false, spd: 0, charge: 0,
-      burn: 0, spin: 0, rev: 0, revving: false,
+      burn: 0, spin: 0, spinBoost: SPIN_BOOST, rev: 0, revving: false,
       ateConfirm: false
     };
     this.walked = 0;
@@ -554,9 +562,12 @@
       var wind = Math.round(p.rev);
       p.rev = 0;
       if (wind > 0) {
+        var full = Math.min(1, wind / REV_MAX);
         p.spin = SPIN_DASH_TIME + wind * 0.09;
-        /* six turns is a standing start straight into top speed */
-        p.spd = TOP_DASH * (0.45 + 0.55 * Math.min(1, wind / REV_MAX));
+        /* six turns is a standing start straight past top speed, and the
+           launch carries a bigger boost than a rolling spin does */
+        p.spd = DASH_HOT * (0.55 + 0.45 * full);
+        p.spinBoost = SPIN_BOOST + (DASH_BOOST - SPIN_BOOST) * full;
         p.burn = FIRE_2;                  /* comes out of it fully lit */
         SH.Audio.sfx('chaos');
         SH.shake(4, 0.18);
@@ -586,16 +597,23 @@
          still, down does nothing at all now; the spin dash is the standing
          version of the move. */
       p.spin = SPIN_TIME;
+      p.spinBoost = SPIN_BOOST;
       SH.Audio.sfx('chaos');
     }
 
     /* Speed ramps the way it does in the series - you do not get top speed
-       for free the instant you touch the key, you build to it. */
-    var top = p.moving ? (dash ? TOP_DASH : TOP_WALK) : 0;
-    if (p.spin > 0) top = TOP_DASH;
+       for free the instant you touch the key, you build to it - and how
+       high the ramp goes is whichever stage the fire has reached. */
+    var stage = p.burn >= FIRE_2 ? DASH_HOT
+              : (p.burn >= FIRE_1 ? DASH_WARM : DASH_COLD);
+    var top = p.moving ? (dash ? stage : TOP_WALK) : 0;
+    if (p.spin > 0) top = DASH_HOT;
     if (p.spd < top) p.spd = Math.min(top, p.spd + ACCEL * dt);
     else if (p.spd > top) p.spd = Math.max(top, p.spd - DECEL * dt);
-    p.charge = SH.clamp(p.spd / TOP_DASH, 0, 1);
+    /* charge is measured against the stage he is IN, not against the top
+       stage, so the heel-vents step still takes about its second no matter
+       how much faster the fully lit step is */
+    p.charge = SH.clamp(p.spd / stage, 0, 1);
     if (p.skating) {
       p.burn += dt * p.charge;
       /* tell them about the spin when they first hit a full burn, not after
@@ -605,13 +623,17 @@
           '에어 슈즈가 완전히 점화됐다.  이 상태에서 ↓ 를 누르면 스핀 (조우 무시).');
       }
     } else {
-      /* off the shoes: the fire dies all the way out, so the next run
-         climbs none -> heels -> full again from the bottom */
+      /* off the shoes: the fire dies out, so the next run climbs
+         none -> heels -> full again from the bottom */
       p.burn = Math.max(0, p.burn - dt * BURN_DRAIN);
     }
+    /* and a dead stop puts it out outright.  Draining at 2.5/s still left
+       embers on the shoes if you stopped and set off again inside half a
+       second, which is exactly the case where the climb should restart. */
+    if (p.spd <= 0) { p.burn = 0; p.spinBoost = SPIN_BOOST; }
 
     var speed = p.spd * SH.Settings.speedMul() * dt;
-    if (p.spin > 0) speed *= SPIN_BOOST;
+    if (p.spin > 0) speed *= p.spinBoost;
     if (ax.x && ax.y) speed *= 0.72;
     /* horizontal input wins the facing, so a diagonal keeps the profile */
     if (p.spin > 0) { ax = { x: p.face, y: 0 }; }
@@ -716,11 +738,12 @@
     this.map.objects.forEach(function (o) {
       var x = o.x - 8 - cx, y = o.y - 8 - cy;
       if (x < -TS || y < -TS || x > SH.W || y > SH.H) return;
-      /* the emerald brings its own pool of light, so it gets no shadow;
-         a finished terminal is still standing there, so it keeps one */
-      if (o.kind !== 'gate' && o.kind !== 'emerald' &&
-          (!(o.used || !o.alive) || o.kind === 'terminal')) {
-        var tall = o.kind === 'terminal' || o.kind === 'crate' || o.kind === 'pod';
+      /* a finished terminal and an emptied plinth are both still standing
+         there, so they keep their shadow */
+      if (o.kind !== 'gate' &&
+          (!(o.used || !o.alive) || o.kind === 'terminal' || o.kind === 'emerald')) {
+        var tall = o.kind === 'terminal' || o.kind === 'crate' ||
+                   o.kind === 'pod' || o.kind === 'emerald';
         var big = tall || o.kind === 'save' || o.kind === 'sign' ||
                   o.kind === 'npc' || o.kind === 'prop';
         SH.groundShadow(o.x - cx, o.y - cy + (big ? 9 : 7),
@@ -759,10 +782,18 @@
                   o.x - 12 - cx, o.y - 28 - cy);
         }
       } else if (o.kind === 'emerald') {
+        /* The gem stays the size it has always been - it is the HUD icon,
+           and scaling it up made it read as some other object.  What makes
+           it findable across the stage is the plinth under it, which stays
+           behind (dark and empty) once the gem is gone. */
+        SH.draw('objectives',
+                SH.frameOf('objectives', o.used ? 'pedestal_empty' : 'pedestal',
+                           (SH.time * 4 + o.tx) | 0),
+                o.x - 12 - cx, o.y - 28 - cy);
         if (!o.used) {
-          SH.draw('objectives', SH.frameOf('objectives', SH.Game.emeraldSpriteFor(o), 0),
-                  o.x - 12 - cx,
-                  o.y - 28 - cy + Math.sin(SH.time * 2.5 + o.tx) * 2);
+          SH.draw('hud', SH.frameOf('hud', SH.Game.emeraldSpriteFor(o), 0),
+                  o.x - 8 - cx,
+                  o.y - 24 - cy + Math.sin(SH.time * 2.5 + o.tx) * 2);
         }
       } else if (o.kind === 'sign') {
         var near = self.nearObject() === o;
@@ -792,6 +823,7 @@
       if (self.nearObject() === o &&
           (readable || !(o.used || !o.alive) || o.kind === 'gate')) {
         var lift = o.kind === 'log' ? 18
+                 : o.kind === 'emerald' ? 34
                  : (TALL[o.kind] ? 38 : (readable ? 26 : 20));
         SH.text('Z', o.x - cx, o.y - cy - lift,
                 { color: '#ffd23f', size: 9, align: 'center' });

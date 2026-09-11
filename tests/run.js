@@ -252,6 +252,84 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   check('and he comes out of it already fully lit', dash.launched.burn >= 1.35);
   check('pushing forward uncurls him back onto the shoes', dash.uncurled === 0);
 
+  /* Each stage of the fire is a different top speed, and the gaps have to
+     be big enough to feel rather than to measure. */
+  const tiers = await page.evaluate(async () => {
+    const o = SH.scenes[SH.scenes.length - 1], p = o.player;
+    const run = async (burn, dashing) => {
+      p.spd = 0; p.spin = 0; p.rev = 0; p.revving = false;
+      p.x = o.map.spawn.x; p.y = o.map.spawn.y;
+      const pin = setInterval(() => { p.burn = burn; }, 4);
+      SH.Input.state.right = true;
+      SH.Input.state.cancel = !!dashing;
+      /* long enough for the slowest of them to actually top out: at
+         ACCEL 200 px/s^2 a full burn needs a good second and a quarter */
+      await new Promise(r => setTimeout(r, 1700));
+      const spd = p.spd;
+      SH.Input.state.right = false; SH.Input.state.cancel = false;
+      clearInterval(pin);
+      await new Promise(r => setTimeout(r, 350));
+      return spd;
+    };
+    const walk = await run(0, false);
+    const cold = await run(0, true);
+    const warm = await run(0.8, true);
+    const hot = await run(2.0, true);
+    p.burn = 0;
+    return { walk: walk, cold: cold, warm: warm, hot: hot };
+  });
+  check('a cold skate already beats a walk', tiers.cold > tiers.walk);
+  check('lighting the heel vents is a clear step up',
+    tiers.warm > tiers.cold * 1.25);
+  check('and a full burn is a clear step up again',
+    tiers.hot > tiers.warm * 1.25);
+
+  /* The spin dash costs a standstill and a second of tapping, so it has to
+     be the fastest thing in the game - faster than simply holding a
+     direction at a full burn, and faster than the rolling spin too. */
+  const tops = await page.evaluate(async () => {
+    const o = SH.scenes[SH.scenes.length - 1], p = o.player;
+    const key = (t, c) => window.dispatchEvent(new KeyboardEvent(t, { code: c }));
+    const clear = () => ['ArrowRight', 'ArrowDown', 'KeyX', 'KeyZ']
+      .forEach(c => key('keyup', c));
+
+    /* rolling spin out of a full-burn run */
+    clear();
+    p.x = o.map.spawn.x; p.y = o.map.spawn.y;
+    p.spin = 0; p.rev = 0; p.revving = false; p.burn = 2.0; p.spd = 248;
+    p.dir = 'side'; p.face = 1;
+    key('keydown', 'KeyX'); key('keydown', 'ArrowRight');
+    await new Promise(r => setTimeout(r, 140));
+    key('keydown', 'ArrowDown');
+    await new Promise(r => setTimeout(r, 110));
+    const roll = p.spin > 0 ? p.spd * p.spinBoost : 0;
+    clear();
+    p.spin = 0; p.rev = 0; p.revving = false; p.spd = 0; p.burn = 0;
+    await new Promise(r => setTimeout(r, 120));
+
+    /* six-turn spin dash from a standstill */
+    p.x = o.map.spawn.x; p.y = o.map.spawn.y;
+    p.dir = 'side'; p.face = 1;
+    SH.Input.state.down = true;
+    for (let i = 0; i < 6; i++) {
+      key('keydown', 'KeyZ');
+      await new Promise(r => setTimeout(r, 40));
+      key('keyup', 'KeyZ');
+      await new Promise(r => setTimeout(r, 70));
+    }
+    SH.Input.state.down = false;
+    await new Promise(r => setTimeout(r, 90));
+    const launch = p.spin > 0 ? p.spd * p.spinBoost : 0;
+    clear();
+    p.spin = 0; p.rev = 0; p.revving = false; p.spd = 0; p.burn = 0;
+    await new Promise(r => setTimeout(r, 120));
+    return { roll: roll, launch: launch };
+  });
+  check('a rolling spin beats a full-burn skate', tops.roll > tiers.hot * 1.3);
+  check('and a full spin dash beats the rolling spin', tops.launch > tops.roll);
+  check('the spin dash is far and away the fastest thing there is',
+    tops.launch > tiers.hot * 1.7);
+
   /* Down is a direction first.  The roll is only ever a modifier on a run
      that is already happening. */
   const rollGate = await page.evaluate(async () => {
@@ -409,6 +487,7 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
   const objs = await page.evaluate(() => {
     const o = SH.Assets.sheet('objectives'), p = SH.Assets.sheet('props');
     const names = o.names;
+    const hud = SH.Assets.sheet('hud').names;
     const emeralds = ['emerald_cyan', 'emerald_yellow', 'emerald_green',
                       'emerald_blue', 'emerald_purple', 'emerald_red',
                       'emerald_white'];
@@ -425,17 +504,23 @@ const SHOTS = path.join(ROOT, 'tests', 'shots');
       marked: names.terminal_off.length === 2 && names.crate.length === 2 &&
               names.pod.length === 2,
       doneIsOwnFrame: names.terminal_on.length === 1 && off !== on,
-      allEmeralds: emeralds.every(n => names[n] && names[n].length === 1),
+      /* the gem is still the 16x16 HUD icon; the PLINTH is what makes it
+         findable, and the emptied plinth stays behind once it is taken */
+      gemStaysSmall: emeralds.every(n => hud[n] && hud[n].length === 1) &&
+                     emeralds.every(n => !names[n]),
+      plinth: names.pedestal.length === 2 && names.pedestal_empty.length === 1,
       count: o.frames
     };
   });
-  check('mission objects have a sheet of their own', objs.count === 14);
+  check('mission objects have a sheet of their own', objs.count === 10);
   check('and they stand a good deal bigger than the set dressing',
     objs.objW > objs.propW && objs.objH > objs.propH &&
     objs.objW * objs.objH >= objs.propW * objs.propH * 2);
   check('unfinished objectives carry a two-frame bobbing marker', objs.marked);
   check('a finished terminal drops the marker', objs.doneIsOwnFrame);
-  check('every emerald colour has a big overworld gem', objs.allEmeralds);
+  check('the emerald itself stays the size it always was', objs.gemStaysSmall);
+  check('what makes it findable is the plinth under it, which outlives it',
+    objs.plinth);
 
   /* ---- scenery you can actually press Z on --------------------------- */
   const propData = await page.evaluate(() => {

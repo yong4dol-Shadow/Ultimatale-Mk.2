@@ -666,21 +666,40 @@ def obj_pod(bob=0):
     return cv
 
 
-def obj_emerald(color, dark):
-    """A Chaos Emerald on the ground: the HUD gem at more than twice the
-    size, hovering over its own pool of light."""
+def obj_pedestal(pulse=0, empty=False):
+    """The plinth a Chaos Emerald stands on.
+
+    The gem itself stays exactly the size it has always been - it is the
+    HUD icon, and blowing it up made it read as some other object.  What
+    makes it findable across a 208x144 stage is the thing holding it up:
+    a stepped column with light burning in the socket on top.  Take the
+    gem and the plinth stays behind, dark and dead, so a stage you have
+    already picked clean looks picked clean."""
     cv = Canvas(24, 36)
-    cv.ellipse(12, 31, 7.5, 2.8, dark)               # pool of light below
-    cv.ellipse(12, 31, 5, 1.7, color)
-    cv.poly([(12, 8), (21, 17), (17, 29), (7, 29), (3, 17)], color)
-    cv.poly([(7, 17), (12, 22), (7, 29), (3, 17)], dark)   # facet in shadow
-    cv.poly([(12, 8), (16, 15), (12, 18), (8, 15)], '8')   # crown facet
-    cv.px(11, 11, 'h'); cv.px(12, 11, 'h')
+    cv.rect(1, 33, 22, 2, '2')                       # footing
+    cv.rect(2, 30, 20, 4, '3')                       # bottom step
+    cv.rect(3, 31, 18, 2, '4')
+    cv.rect(4, 27, 16, 4, '3')                       # second step
+    cv.rect(5, 28, 14, 2, '4')
+    cv.rect(7, 22, 10, 6, '3')                       # column
+    cv.rect(8, 23, 8, 4, '4' if not empty else '3')
+    for i in range(2):                               # engraved flutes
+        cv.rect(10 + i * 4, 23, 1, 4, '2')
+    cv.rect(3, 19, 18, 4, '3')                       # capital
+    cv.rect(4, 20, 16, 2, '4' if empty else '5')
+    cv.rect(4, 19, 16, 1, '5' if empty else '6')     # bevel highlight
+    cv.rect(9, 19, 6, 2, '1')                        # socket
+    if empty:
+        cv.px(10, 20, '2'); cv.px(13, 20, '2')       # cold and dead
+        cv.outline('0')
+        return cv
+    cv.ellipse(12, 19, 5.0 + pulse * 0.7, 1.5, 'y')  # light in the socket
+    cv.ellipse(12, 19, 2.6, 0.9, 'h')
     cv.outline('0')
-    for x0, y0 in ((2, 7), (21, 10), (4, 27), (20, 25)):
-        cv.px(x0 - 1, y0, '8'); cv.px(x0 + 1, y0, '8')
-        cv.px(x0, y0 - 1, '8'); cv.px(x0, y0 + 1, '8')
-        cv.px(x0, y0, 'h')
+    for i, (mx, my) in enumerate(((2, 16), (21, 13), (3, 11), (20, 18))):
+        if (i + pulse) % 2 == 0:                     # motes, twinkling
+            cv.px(mx, my, 'h')
+            cv.px(mx, my + 1, '8')
     return cv
 
 

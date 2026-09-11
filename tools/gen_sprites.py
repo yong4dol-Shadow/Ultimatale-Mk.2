@@ -232,9 +232,10 @@ def build():
         addo('crate', U.obj_crate(b))
     for b in (0, 2):
         addo('pod', U.obj_pod(b))
-    for nm, c, d in U.EMERALD_COLORS:
-        addo(nm, U.obj_emerald(c, d))
-    emit('objectives', obj, U.UI_PAL, cols=7, frame_names=obj_names,
+    for b in (0, 1):
+        addo('pedestal', U.obj_pedestal(b))
+    addo('pedestal_empty', U.obj_pedestal(0, True))
+    emit('objectives', obj, U.UI_PAL, cols=5, frame_names=obj_names,
          edge_check=False)
 
     emit('props', [fn() for _, fn in U.PROPS], U.UI_PAL, cols=9,
